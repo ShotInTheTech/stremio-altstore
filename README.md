@@ -189,7 +189,16 @@ Each run also, in the same job:
 - **Backfills integrity hashes** — `scripts/add_hashes.py` computes the `sha256` of a few IPAs per run (newest first, budget-limited so it never risks the job's time limit), so every version eventually carries a hash that signing apps can verify the download against.
 - **Regenerates the version tables** in this README from the JSON.
 
-A separate **CDN health canary** (`scripts/check_cdn.py`) runs on the same schedule. Because the updater exits successfully whether it finds new versions or finds nothing, a broken CDN (a changed URL scheme, an outage, or a pulled build) would otherwise be invisible. The canary HEAD-checks the newest known IPA for each platform and **opens a GitHub issue** (deduplicated — one at a time) if the source may be serving dead downloads.
+### Weekly audit
+
+The updater only ever looks for *new* builds, so a second workflow (`.github/workflows/audit.yml`) runs weekly to catch what that misses:
+
+- **Dead downloads** — `scripts/prune_dead.py` HEAD-checks every listed IPA. When Stremio pulls an old build, the entry is removed so nobody is left tapping a link that 404s. It is deliberately cautious: only 404/410 counts (never a timeout or 5xx), each one is re-checked, and it prunes nothing at all if the newest version is missing or if many die at once — those look like a CDN change, not individual pulls. Dropping an app that has no working versions left is left to a human.
+- **Metadata drift** — `scripts/verify_bundle_ids.py` reads each IPA's real `Info.plist` and compares the bundle identifier, version, build and `MinimumOSVersion` against what the JSON claims.
+
+Anything needing a decision opens a single deduplicated GitHub issue.
+
+A separate **CDN health canary** (`scripts/check_cdn.py`) runs on the 6-hour schedule. Because the updater exits successfully whether it finds new versions or finds nothing, a broken CDN (a changed URL scheme, an outage, or a pulled build) would otherwise be invisible. The canary HEAD-checks the newest known IPA for each platform and **opens a GitHub issue** (deduplicated — one at a time) if the source may be serving dead downloads.
 
 To enable the workflow: **Actions → Update Stremio source → Enable workflow**.
 
@@ -263,7 +272,8 @@ stremio-altstore/
 ├── install.html                ← one-tap install landing page (GitHub Pages)
 ├── .github/
 │   ├── workflows/
-│   │   └── update.yml          ← auto-update every 6 hours + CDN canary
+│   │   ├── update.yml          ← auto-update every 6 hours + CDN canary
+│   │   └── audit.yml           ← weekly dead-IPA prune + metadata verify
 │   └── ISSUE_TEMPLATE/
 │       ├── bug_report.yml
 │       ├── feature_request.yml
@@ -272,7 +282,8 @@ stremio-altstore/
     ├── verify_bundle_ids.py    ← standalone IPA Info.plist verifier
     ├── render_readme.py        ← regenerates the version tables above
     ├── add_hashes.py           ← backfills sha256 integrity hashes (budgeted)
-    └── check_cdn.py            ← CDN health canary (opens an issue if broken)
+    ├── check_cdn.py            ← CDN health canary (opens an issue if broken)
+    └── prune_dead.py           ← removes versions whose IPA is gone (404)
 ```
 
 ### Why two JSON files?

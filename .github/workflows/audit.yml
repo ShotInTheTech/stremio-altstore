@@ -1,0 +1,148 @@
+name: Weekly source audit
+
+# Two things the 6-hourly updater cannot catch, because it only ever looks
+# for *new* builds:
+#   1. Builds Stremio has pulled since we listed them — the JSON keeps
+#      pointing at a dead URL and users get "failed to download".
+#   2. Metadata drift — bundle id / version / minOS in the JSON no longer
+#      matching what is actually inside the IPA.
+# Both are slow-moving, so this runs weekly rather than every 6 hours.
+
+on:
+  schedule:
+    # Mondays 04:30 UTC — off-cycle from the 6-hourly updater
+    - cron: "30 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+# Shares the updater's concurrency group on purpose: both jobs can commit
+# and push, and queueing them is what keeps the two from racing.
+concurrency:
+  group: update-stremio-source
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: Prune dead IPAs and verify metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Prune versions whose IPA is gone
+        id: prune
+        run: |
+          set +e
+          python3 scripts/prune_dead.py --apply 2>&1 | tee prune.txt
+          echo "rc=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Regenerate README version tables
+        run: python3 scripts/render_readme.py
+
+      - name: Commit and push if anything was pruned
+        id: commit
+        run: |
+          if git diff --quiet stremio-ios.json stremio-tvos.json README.md; then
+            echo "Nothing pruned — no commit."
+            exit 0
+          fi
+          git config user.name "stremio-altstore-bot"
+          git config user.email "bot@stremio-altstore.local"
+          git add stremio-ios.json stremio-tvos.json README.md
+          DIFFSTAT=$(git diff --cached --stat stremio-ios.json stremio-tvos.json README.md | tail -1)
+          git commit -m "chore: prune dead IPA versions" \
+                     -m "Weekly audit found versions returning 404 on dl.strem.io and removed them." \
+                     -m "" \
+                     -m "$DIFFSTAT"
+          # Same rebase-and-retry as the updater, in case it pushed meanwhile.
+          for attempt in 1 2 3; do
+            if git push origin HEAD:main; then
+              echo "Pushed on attempt $attempt."
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Push still rejected after $attempt attempts."
+              exit 1
+            fi
+            git pull --rebase origin main
+          done
+
+      - name: Verify bundle IDs against the real IPAs
+        id: verify
+        run: |
+          set +e
+          python3 scripts/verify_bundle_ids.py --verbose 2>&1 | tee verify.txt
+          echo "rc=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Summarise
+        run: |
+          {
+            echo "## Weekly source audit"
+            echo ""
+            echo "- Prune exit code: \`${{ steps.prune.outputs.rc }}\` (0 clean · 1 dead found · 2 needs a human)"
+            echo "- Verify exit code: \`${{ steps.verify.outputs.rc }}\` (0 all metadata matches)"
+            echo ""
+            echo '<details><summary>Prune output</summary>'
+            echo ""
+            echo '```'
+            tail -40 prune.txt
+            echo '```'
+            echo '</details>'
+            echo ""
+            echo '<details><summary>Verify output</summary>'
+            echo ""
+            echo '```'
+            tail -40 verify.txt
+            echo '```'
+            echo '</details>'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open an issue if something needs a human
+        if: steps.prune.outputs.rc == '2' || steps.verify.outputs.rc != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Deduplicate by title marker so a standing problem doesn't spam issues.
+          EXISTING=$(gh issue list --state open --search 'in:title [SOURCE-AUDIT]' --json number --jq 'length')
+          if [ "$EXISTING" -gt 0 ]; then
+            echo "An open [SOURCE-AUDIT] issue already exists — not opening a duplicate."
+            exit 0
+          fi
+          {
+            echo "The weekly audit found something it will not fix on its own."
+            echo ""
+            echo "- Prune exit code: \`${{ steps.prune.outputs.rc }}\` — \`2\` means an app has no"
+            echo "  working versions left, the newest version is gone, or too many died at once."
+            echo "- Verify exit code: \`${{ steps.verify.outputs.rc }}\` — non-zero means the JSON"
+            echo "  metadata no longer matches the IPA's own Info.plist, or an IPA could not be read."
+            echo ""
+            echo "Dead versions that were safe to remove have already been pruned and pushed."
+            echo ""
+            echo "<details><summary>Prune output</summary>"
+            echo ""
+            echo '```'
+            tail -40 prune.txt
+            echo '```'
+            echo "</details>"
+            echo ""
+            echo "<details><summary>Verify output</summary>"
+            echo ""
+            echo '```'
+            tail -40 verify.txt
+            echo '```'
+            echo "</details>"
+            echo ""
+            echo "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } > body.md
+          gh issue create \
+            --title "[SOURCE-AUDIT] Dead IPAs or metadata drift need a decision" \
+            --body-file body.md

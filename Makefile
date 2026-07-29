@@ -8,6 +8,8 @@
 #   make readme      — regenerate the README "Available versions" tables
 #   make hashes      — backfill sha256 integrity hashes (budgeted downloads)
 #   make canary      — CDN health check (newest IPAs still reachable?)
+#   make prune       — report versions whose IPA is gone (add APPLY=1 to remove)
+#   make audit       — full weekly audit: prune report + metadata verification
 #   make lint        — Python code quality checks
 #   make format      — format Python code
 #   make clean       — remove temporary files
@@ -23,7 +25,7 @@ GREEN := \033[32m
 YELLOW := \033[33m
 RESET := \033[0m
 
-.PHONY: help dry-run update verify readme hashes canary lint format clean set-urls ios tvos stats
+.PHONY: help dry-run update verify readme hashes canary prune audit lint format clean set-urls ios tvos stats
 
 help:  ## Show this help message
 	@echo ""
@@ -64,6 +66,18 @@ hashes:  ## Backfill sha256 integrity hashes (set BUDGET=N to override per-run c
 canary:  ## CDN health check — are the newest known IPAs still reachable?
 	@echo "$(YELLOW)→ CDN health canary$(RESET)"
 	$(PYTHON) scripts/check_cdn.py
+
+prune:  ## Report versions whose IPA is gone (APPLY=1 removes the safe ones)
+	@echo "$(YELLOW)→ Dead version check$(RESET)"
+	@# '-' so make doesn't print "Error 1/2" over the script's own report;
+	@# CI calls the script directly and does act on the exit code.
+	-@$(PYTHON) scripts/prune_dead.py $(if $(APPLY),--apply,)
+
+audit:  ## Weekly audit: dead-version report + Info.plist metadata verification
+	@echo "$(YELLOW)→ Dead version check$(RESET)"
+	-$(PYTHON) scripts/prune_dead.py
+	@echo "$(YELLOW)→ Verify bundle IDs against the real IPAs$(RESET)"
+	-$(PYTHON) scripts/verify_bundle_ids.py
 
 ios:  ## Update only the iOS source (pass DRY/UPDATE/VERIFY via ARGS)
 	@echo "$(YELLOW)→ iOS only$(RESET)"
