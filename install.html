@@ -86,9 +86,14 @@
     .hero p { color: var(--dim); font-size: 17px; margin: 0; }
 
     /* ---------- platform cards ---------- */
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 34px; }
-    @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+    /* minmax(0,1fr) — not plain 1fr. A grid item defaults to min-width:auto,
+       so the card refuses to shrink below its min-content width (~565px here,
+       driven by the nowrap source URL) and overflows narrow phones. Chromium
+       clips it; iOS Safari does not, which is why this only showed on device. */
+    .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; margin-top: 34px; }
+    @media (max-width: 720px) { .grid { grid-template-columns: minmax(0, 1fr); } }
     .card {
+      min-width: 0;
       background: linear-gradient(180deg, var(--panel-2), var(--panel));
       border: 1px solid var(--line); border-radius: var(--radius);
       padding: 24px; display: flex; flex-direction: column; gap: 16px;
@@ -103,7 +108,7 @@
     }
     .latest .v { font-size: 26px; font-weight: 800; letter-spacing: -.02em; }
     .latest .sub { color: var(--dim); font-size: 13px; }
-    .urlrow { display: flex; gap: 8px; }
+    .urlrow { display: flex; gap: 8px; min-width: 0; }
     .url {
       flex: 1; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       font-size: 12px; color: var(--dim);
@@ -190,16 +195,21 @@
       /* Title + release count can't share one line on a phone — stack them
          so the count never gets clipped off the right edge. */
       .card-head { flex-direction: column; align-items: flex-start; gap: 4px; }
+      /* let the release count wrap instead of forcing the card wider */
+      .meta { white-space: normal; }
       /* Two side-by-side buttons can't shrink below their label width
          ("Add to AltStore" alone is ~255px), which overflowed the card on
          narrow screens. Stack them full-width instead. */
       .btns { flex-direction: column; }
       .btn { font-size: 15px; padding: 14px 10px; }
-      /* Tighten the version table and drop the redundant "App" column
-         (the app is already named in the cards above) so it needs far
-         less horizontal scrolling on a phone. */
-      .vt th, .vt td { padding: 10px 12px; font-size: 13px; }
-      .vt th:nth-child(2), .vt td:nth-child(2) { display: none; }
+      /* Fit the table on a phone with no horizontal scrolling at all: drop
+         the redundant "App" column (named in the cards above) and the
+         SHA-256 column (a desktop/verification concern — the hashes stay in
+         the JSON), and tighten the remaining cells. */
+      .vt th, .vt td { padding: 10px 8px; font-size: 12.5px; }
+      .vt th:nth-child(2), .vt td:nth-child(2),
+      .vt th:nth-child(5), .vt td:nth-child(5) { display: none; }
+      .chip { margin-left: 6px; font-size: 9.5px; padding: 1px 6px; }
     }
   </style>
 </head>
@@ -262,8 +272,9 @@
 
     <section class="versions">
       <h2>Every release, verified</h2>
-      <p>Loaded live from the source JSON. Each IPA links straight to Stremio's own CDN;
-         hashes are SHA‑256, computed by this repo's pipeline — tap one to copy it.</p>
+      <p>Loaded live from the source JSON, so this list is never out of date. Each IPA links
+         straight to Stremio's own CDN. On wider screens every row also shows its SHA‑256
+         fingerprint — tap one to copy.</p>
       <div id="version-groups"><div class="loading">Loading versions…</div></div>
     </section>
 
