@@ -2,8 +2,8 @@
 
 [![Update source](https://github.com/gorlev/stremio-altstore/actions/workflows/update.yml/badge.svg)](https://github.com/gorlev/stremio-altstore/actions/workflows/update.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Stremio iOS versions](https://img.shields.io/badge/iOS-11%20versions-7055D9)](stremio-ios.json)
-[![Stremio tvOS versions](https://img.shields.io/badge/tvOS-7%20versions-7055D9)](stremio-tvos.json)
+[![Stremio iOS versions](https://img.shields.io/badge/iOS-10%20versions-7055D9)](stremio-ios.json)
+[![Stremio tvOS versions](https://img.shields.io/badge/tvOS-6%20versions-7055D9)](stremio-tvos.json)
 
 An **unofficial** AltStore-format source collection for Stremio iOS and tvOS, compatible with any signing app that consumes the standard AltStore source format — Feather, AltStore Classic, AltStore PAL, ESign, Scarlet, Sideloadly, and others. Stremio's official source at [`dl.strem.io/apple/altstore/source.json`](https://dl.strem.io/apple/altstore/source.json) cannot be parsed by most third-party signing apps because it uses Apple's encrypted App Store Connect manifest format — this repo publishes standard AltStore-format JSON sources that point to Stremio's plain IPA artifacts.
 
@@ -147,12 +147,6 @@ Prefer to run your own source (own URL, own update schedule)? Fork and host it i
 | 2.0.0 | 13 | 2026-06-05 | 74 MB | [IPA](https://dl.strem.io/apple/2.0.0b13/ios/stremio_iOS.ipa) |
 | 2.0.0 | 11 | 2026-05-30 | 74 MB | [IPA](https://dl.strem.io/apple/2.0.0b11/ios/stremio_iOS.ipa) |
 
-#### Stremio Lite (legacy) — `com.stremio.ios`
-
-| Version | Build | Date | Size | Download |
-|---|---|---|---|---|
-| 1.3.6 | 7 | 2026-01-31 | 75 MB | [IPA](https://dl.strem.io/apple/1.3.6b7/ios/stremio_iOS.ipa) |
-
 ### tvOS — `stremio-tvos.json`
 
 #### Stremio (PAL, full-featured) — `com.stremio.pal`
@@ -165,12 +159,6 @@ Prefer to run your own source (own URL, own update schedule)? Fork and host it i
 | 2.0.2 | 17 | 2026-06-19 | 70 MB | [IPA](https://dl.strem.io/apple/2.0.2b17/tvos/stremio_tvOS.ipa) |
 | 2.0.1 | 16 | 2026-06-16 | 70 MB | [IPA](https://dl.strem.io/apple/2.0.1b16/tvos/stremio_tvOS.ipa) |
 | 2.0.1 | 15 | 2026-06-15 | 70 MB | [IPA](https://dl.strem.io/apple/2.0.1b15/tvos/stremio_tvOS.ipa) |
-
-#### Stremio Lite (legacy) — `com.stremio.ios`
-
-| Version | Build | Date | Size | Download |
-|---|---|---|---|---|
-| 1.3.6 | 7 | 2026-01-31 | 73 MB | [IPA](https://dl.strem.io/apple/1.3.6b7/tvos/stremio_tvOS.ipa) |
 
 <!-- END:AVAILABLE_VERSIONS -->
 
@@ -194,7 +182,7 @@ Each run also, in the same job:
 The updater only ever looks for *new* builds, so a second workflow (`.github/workflows/audit.yml`) runs weekly to catch what that misses:
 
 - **Dead downloads** — `scripts/prune_dead.py` HEAD-checks every listed IPA. When Stremio pulls an old build, the entry is removed so nobody is left tapping a link that 404s. It is deliberately cautious: only 404/410 counts (never a timeout or 5xx), each one is re-checked, and it prunes nothing at all if the newest version is missing or if many die at once — those look like a CDN change, not individual pulls. Dropping an app that has no working versions left is left to a human.
-- **Metadata drift** — `scripts/verify_bundle_ids.py` reads each IPA's real `Info.plist` and compares the bundle identifier, version, build and `MinimumOSVersion` against what the JSON claims.
+- **Metadata drift** — `scripts/verify_bundle_ids.py` reads each IPA's real `Info.plist` and compares the bundle identifier, version, build and `MinimumOSVersion` against what the JSON claims. It corrects `minOSVersion` in place (the IPA is the authority, and the field only advertises compatibility); a mismatched bundle identifier, version or build defines the entry's identity, so those are reported for a human instead.
 
 Anything needing a decision opens a single deduplicated GitHub issue.
 

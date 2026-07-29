@@ -11,11 +11,16 @@ Usage:
     python3 scripts/verify_bundle_ids.py                      # Both JSONs
     python3 scripts/verify_bundle_ids.py stremio-ios.json      # Single file
     python3 scripts/verify_bundle_ids.py --verbose             # Detailed output
+    python3 scripts/verify_bundle_ids.py --fix                 # Correct minOSVersion
+
+--fix only rewrites `minOSVersion`, where the IPA is unambiguously the
+authority and the field merely advertises compatibility. A wrong bundle
+identifier, version or build defines the entry's identity, so those stay
+reported-only and need a human.
 
 Exit codes:
     0 — all values match
-    1 — mismatch found
-    2 — fetch / parse error
+    1 — mismatch or fetch/parse error
 """
 
 from __future__ import annotations
@@ -31,11 +36,12 @@ from ipa_plist import get_main_app_info_plist  # noqa: E402
 ipa_plist.USER_AGENT = "stremio-altstore/verify_bundle_ids/1.0"
 
 
-def verify(json_paths: list[Path], verbose: bool = False) -> int:
+def verify(json_paths: list[Path], verbose: bool = False, fix: bool = False) -> int:
     total = 0
     passed = 0
     mismatches = 0
     errors = 0
+    fixed = 0
 
     for json_path in json_paths:
         if not json_path.exists():
@@ -44,6 +50,7 @@ def verify(json_paths: list[Path], verbose: bool = False) -> int:
             continue
 
         data = json.loads(json_path.read_text(encoding="utf-8"))
+        file_fixed = 0
         print(f"\n=== {json_path.name} — {data.get('name', '?')} ===")
 
         for app in data.get("apps", []):
@@ -85,7 +92,17 @@ def verify(json_paths: list[Path], verbose: bool = False) -> int:
                     ok = False
                 if str(ipa_minos) != str(json_minos):
                     print(f"    [DIFF] minOS: json={json_minos!r} ipa={ipa_minos!r}")
-                    ok = False
+                    # minOSVersion is safe to correct automatically: the IPA is
+                    # the authority and the field only advertises compatibility.
+                    # bundleId / version / build are deliberately NOT auto-fixed —
+                    # those define the entry's identity, so they need a human.
+                    if fix and ipa_minos != "?":
+                        v["minOSVersion"] = str(ipa_minos)
+                        fixed += 1
+                        file_fixed += 1
+                        print(f"    [FIX ] minOS -> {ipa_minos!r}")
+                    else:
+                        ok = False
 
                 if ok:
                     passed += 1
@@ -97,15 +114,24 @@ def verify(json_paths: list[Path], verbose: bool = False) -> int:
                 else:
                     mismatches += 1
 
+        if fix and file_fixed:
+            json_path.write_text(
+                json.dumps(data, indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+            print(f"\n[WRITE] {json_path.name} updated ({file_fixed} minOS value(s) corrected)")
+
     print(f"\n=== Summary ===")
-    print(f"Total: {total}, matching: {passed}, mismatches: {mismatches}, errors: {errors}")
+    print(f"Total: {total}, matching: {passed}, mismatches: {mismatches}, "
+          f"errors: {errors}, corrected: {fixed}")
     return 1 if (mismatches or errors) else 0
 
 
 def main() -> int:
     args = sys.argv[1:]
     verbose = "--verbose" in args or "-v" in args
-    args = [a for a in args if a not in ("--verbose", "-v")]
+    fix = "--fix" in args
+    args = [a for a in args if a not in ("--verbose", "-v", "--fix")]
 
     here = Path(__file__).parent.parent
     if not args:
@@ -114,7 +140,7 @@ def main() -> int:
         paths = [Path(a) for a in args]
 
     paths = [p if p.is_absolute() else here / p for p in paths]
-    return verify(paths, verbose=verbose)
+    return verify(paths, verbose=verbose, fix=fix)
 
 
 if __name__ == "__main__":

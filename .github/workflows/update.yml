@@ -9,15 +9,6 @@ on:
     # Her 6 saatte bir (UTC)
     - cron: "0 */6 * * *"
   workflow_dispatch:
-    inputs:
-      info_plist:
-        description: "Parse Info.plist from new IPAs (slower, ~100KB/IPA)"
-        required: false
-        default: "false"
-        type: choice
-        options:
-          - "false"
-          - "true"
   push:
     # Skip re-running for our own commits (prevents an infinite loop)
     paths-ignore:
@@ -68,11 +59,11 @@ jobs:
         id: apply
         run: |
           set -e
-          ARGS=(--platform all)
-          if [ "${{ inputs.info_plist }}" = "true" ]; then
-            ARGS+=(--info-plist)
-          fi
-          python3 stremio-updater.py "${ARGS[@]}"
+          # --info-plist is always on: without it new versions get a hardcoded
+          # minOSVersion of 13.0, which silently drifted from the IPAs' real
+          # 15.0 and told tvOS 13/14 users an incompatible build would run.
+          # It only reads ~100 KB per discovered IPA via HTTP Range.
+          python3 stremio-updater.py --platform all --info-plist
 
       - name: Backfill IPA integrity hashes (budgeted)
         # Adds sha256 to a few versions per run (newest first). Downloads full

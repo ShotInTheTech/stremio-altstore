@@ -45,22 +45,30 @@ jobs:
           python3 scripts/prune_dead.py --apply 2>&1 | tee prune.txt
           echo "rc=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
 
+      - name: Verify bundle IDs against the real IPAs
+        id: verify
+        run: |
+          set +e
+          # --fix corrects minOSVersion only; identity fields stay reported-only.
+          python3 scripts/verify_bundle_ids.py --verbose --fix 2>&1 | tee verify.txt
+          echo "rc=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
       - name: Regenerate README version tables
         run: python3 scripts/render_readme.py
 
-      - name: Commit and push if anything was pruned
+      - name: Commit and push any corrections
         id: commit
         run: |
           if git diff --quiet stremio-ios.json stremio-tvos.json README.md; then
-            echo "Nothing pruned — no commit."
+            echo "Nothing to correct — no commit."
             exit 0
           fi
           git config user.name "stremio-altstore-bot"
           git config user.email "bot@stremio-altstore.local"
           git add stremio-ios.json stremio-tvos.json README.md
           DIFFSTAT=$(git diff --cached --stat stremio-ios.json stremio-tvos.json README.md | tail -1)
-          git commit -m "chore: prune dead IPA versions" \
-                     -m "Weekly audit found versions returning 404 on dl.strem.io and removed them." \
+          git commit -m "chore: weekly source audit corrections" \
+                     -m "Removed versions returning 404 on dl.strem.io and/or corrected minOSVersion values that had drifted from the IPAs' own Info.plist." \
                      -m "" \
                      -m "$DIFFSTAT"
           # Same rebase-and-retry as the updater, in case it pushed meanwhile.
@@ -75,13 +83,6 @@ jobs:
             fi
             git pull --rebase origin main
           done
-
-      - name: Verify bundle IDs against the real IPAs
-        id: verify
-        run: |
-          set +e
-          python3 scripts/verify_bundle_ids.py --verbose 2>&1 | tee verify.txt
-          echo "rc=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
 
       - name: Summarise
         run: |

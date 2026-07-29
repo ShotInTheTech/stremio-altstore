@@ -322,6 +322,15 @@ def main() -> int:
         total_new += new_count
         total_updated += update_count
 
+        # process_platform creates an entry for every app it knows about, so an
+        # app whose builds have all been pulled from the CDN would reappear here
+        # as an empty shell after being removed. Drop those: an app with no
+        # versions is dead weight in a source and shows up broken in signing apps.
+        dropped = [a["name"] for a in source["apps"] if not a.get("versions")]
+        if dropped:
+            source["apps"] = [a for a in source["apps"] if a.get("versions")]
+            print(f"[CLEAN] dropped app(s) with no versions: {', '.join(dropped)}")
+
         if args.dry_run:
             if new_count or update_count:
                 print(f"[DRY-RUN] {plat}: +{new_count} new, ~{update_count} updated (not written)")
