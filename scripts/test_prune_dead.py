@@ -203,6 +203,41 @@ class GlobalGates(PruneCase):
         self.assertEqual(self.read(), doc)
 
 
+class ShippedDefaults(unittest.TestCase):
+    """The rails only protect anyone at the values we actually ship.
+
+    Found by mutation testing: the cap test passes --max-prune explicitly, so
+    it verifies the mechanism but would not notice the default being loosened.
+    """
+
+    def test_only_definite_gone_statuses_count(self):
+        self.assertEqual(prune_dead.GONE_STATUSES, {404, 410},
+                         "a transient status must never mean 'delete this release'")
+
+    def test_a_suspected_404_is_rechecked(self):
+        self.assertGreaterEqual(prune_dead.DEFAULT_RETRIES, 1)
+
+    def test_default_cap_stays_conservative(self):
+        self.assertLessEqual(prune_dead.DEFAULT_MAX_PRUNE, 5,
+                             "a high cap lets one CDN change wipe the source")
+
+
+class DefaultCapInAction(PruneCase):
+    def test_mass_failure_is_refused_using_the_shipped_default(self):
+        # Same scenario as the cap test above, but without passing --max-prune,
+        # so a loosened default would fail here.
+        versions = [version("2.0.6", "21", url("2.0.6b21"))] + [
+            version(f"2.0.{i}", str(i), url(f"2.0.{i}b{i}")) for i in range(1, 7)
+        ]
+        doc = source([app("Stremio", "com.stremio.pal", versions)])
+        self.write(copy.deepcopy(doc))
+        self.serve({f"2.0.{i}b{i}": 404 for i in range(1, 7)})
+        rc, out = self.run_prune("--apply")
+        self.assertEqual(rc, 2, out)
+        self.assertIn("safety cap", out)
+        self.assertEqual(self.read(), doc)
+
+
 class OrphanedApps(PruneCase):
     def test_app_with_no_surviving_versions_is_flagged_not_emptied(self):
         doc = source([
