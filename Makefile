@@ -10,6 +10,7 @@
 #   make canary      — CDN health check (newest IPAs still reachable?)
 #   make prune       — report versions whose IPA is gone (add APPLY=1 to remove)
 #   make audit       — full weekly audit: prune report + metadata verification
+#   make notes       — capture real release notes from Stremio's own source
 #   make validate    — check the JSON sources are valid and safe to publish
 #   make test        — run the test suite
 #   make lint        — Python code quality checks
@@ -27,7 +28,7 @@ GREEN := \033[32m
 YELLOW := \033[33m
 RESET := \033[0m
 
-.PHONY: help dry-run update verify readme hashes canary prune audit validate test lint format clean set-urls ios tvos stats
+.PHONY: help dry-run update verify readme hashes canary prune audit notes validate test lint format clean set-urls ios tvos stats
 
 help:  ## Show this help message
 	@echo ""
@@ -74,6 +75,10 @@ prune:  ## Report versions whose IPA is gone (APPLY=1 removes the safe ones)
 	@# '-' so make doesn't print "Error 1/2" over the script's own report;
 	@# CI calls the script directly and does act on the exit code.
 	-@$(PYTHON) scripts/prune_dead.py $(if $(APPLY),--apply,)
+
+notes:  ## Capture real release notes from Stremio's source (DRY=1 to preview)
+	@echo "$(YELLOW)→ Capture release notes$(RESET)"
+	$(PYTHON) scripts/fetch_release_notes.py $(if $(DRY),--dry-run,)
 
 validate:  ## Check the JSON sources are valid and safe to publish (STRICT=1 fails on warnings)
 	@echo "$(YELLOW)→ Validate sources$(RESET)"

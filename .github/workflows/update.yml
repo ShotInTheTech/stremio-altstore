@@ -70,6 +70,14 @@ jobs:
           # It only reads ~100 KB per discovered IPA via HTTP Range.
           python3 stremio-updater.py --platform all --info-plist
 
+      - name: Capture release notes
+        # Stremio publishes a real changelog per release, but only for the
+        # newest couple of builds — so this has to run on the normal cadence
+        # to catch each one before it rolls out of their window. Never fails
+        # the run: notes are a nicety, the source itself is the product.
+        continue-on-error: true
+        run: python3 scripts/fetch_release_notes.py
+
       - name: Backfill IPA integrity hashes (budgeted)
         # Adds sha256 to a few versions per run (newest first). Downloads full
         # IPAs, so it is budget-limited and fully decoupled from the updater —

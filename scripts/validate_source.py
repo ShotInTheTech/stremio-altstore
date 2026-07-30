@@ -61,6 +61,12 @@ DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 MIN_IPA_BYTES = 1 * 1024 * 1024        # 1 MB — anything smaller is corruption
 MAX_IPA_BYTES = 500 * 1024 * 1024      # 500 MB — anything larger is suspicious
 
+# Release notes come from upstream; the harvester caps them at 4000, so this
+# leaves headroom while still refusing anything absurd.
+MAX_DESCRIPTION_CHARS = 6000
+# Anything but tab and newline: a changelog keeps its line breaks, nothing else.
+CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+
 
 class Report:
     def __init__(self) -> None:
@@ -135,6 +141,18 @@ def validate_version(rep: Report, where: str, v: object) -> None:
 
     if not isinstance(v.get("minOSVersion"), str) or not v.get("minOSVersion"):
         rep.error(where, "minOSVersion is missing or not a string")
+
+    # Release notes are harvested from Stremio's own source, i.e. third-party
+    # text that signing apps will render. Keep it a plausible string.
+    desc = v.get("localizedDescription")
+    if desc is not None:
+        if not isinstance(desc, str):
+            rep.error(where, f"localizedDescription must be a string, got {type(desc).__name__}")
+        elif len(desc) > MAX_DESCRIPTION_CHARS:
+            rep.error(where, f"localizedDescription is {len(desc)} chars, "
+                             f"over the {MAX_DESCRIPTION_CHARS} limit")
+        elif CONTROL_CHARS_RE.search(desc):
+            rep.error(where, "localizedDescription contains control characters")
 
     sha = v.get("sha256")
     if sha is None:

@@ -142,6 +142,23 @@ class Corruptions(unittest.TestCase):
         d["apps"][0]["versions"][0]["date"] = "22-07-2026"
         self.assert_rejected(d, "yyyy-mm-dd")
 
+    def test_description_with_control_characters(self):
+        # Release notes are harvested from upstream, so the gate must not
+        # wave through raw bytes that a renderer could choke on.
+        d = copy.deepcopy(GOOD)
+        d["apps"][0]["versions"][0]["localizedDescription"] = "feat: nice\x00\x07 thing"
+        self.assert_rejected(d, "control characters")
+
+    def test_description_absurdly_long(self):
+        d = copy.deepcopy(GOOD)
+        d["apps"][0]["versions"][0]["localizedDescription"] = "x" * 20000
+        self.assert_rejected(d, "over the")
+
+    def test_description_wrong_type(self):
+        d = copy.deepcopy(GOOD)
+        d["apps"][0]["versions"][0]["localizedDescription"] = {"text": "nope"}
+        self.assert_rejected(d, "must be a string")
+
     def test_malformed_json(self):
         rep = Report()
         with tempfile.TemporaryDirectory() as td:

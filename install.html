@@ -108,6 +108,23 @@
     }
     .latest .v { font-size: 26px; font-weight: 800; letter-spacing: -.02em; }
     .latest .sub { color: var(--dim); font-size: 13px; }
+    /* "What's new" — real changelog for the newest build */
+    .notes { border: 1px solid var(--line); border-radius: 12px; background: #0f0d18; }
+    .notes[hidden] { display: none; }
+    .notes summary {
+      cursor: pointer; padding: 11px 14px; font-size: 13.5px; font-weight: 650;
+      color: var(--dim); list-style: none; user-select: none;
+    }
+    .notes summary::-webkit-details-marker { display: none; }
+    .notes summary::after { content: " ▾"; color: var(--faint); }
+    .notes[open] summary::after { content: " ▴"; }
+    .notes summary:hover { color: var(--text); }
+    .notes-body {
+      margin: 0; padding: 0 14px 14px; font-size: 13px; line-height: 1.6;
+      color: var(--dim); white-space: pre-wrap; word-wrap: break-word;
+      font-family: inherit; max-height: 260px; overflow-y: auto;
+    }
+
     .urlrow { display: flex; gap: 8px; min-width: 0; }
     .url {
       flex: 1; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -238,6 +255,10 @@
           <span class="v" id="latest-ios">—</span>
           <span class="sub" id="latest-ios-sub"></span>
         </div>
+        <details class="notes" id="notes-ios" hidden>
+          <summary>What's new</summary>
+          <p class="notes-body" id="notes-ios-body"></p>
+        </details>
         <div class="urlrow">
           <div class="url" id="url-ios"></div>
           <button class="copy" data-copy="url-ios">Copy</button>
@@ -258,6 +279,10 @@
           <span class="v" id="latest-tvos">—</span>
           <span class="sub" id="latest-tvos-sub"></span>
         </div>
+        <details class="notes" id="notes-tvos" hidden>
+          <summary>What's new</summary>
+          <p class="notes-body" id="notes-tvos-body"></p>
+        </details>
         <div class="urlrow">
           <div class="url" id="url-tvos"></div>
           <button class="copy" data-copy="url-tvos">Copy</button>
@@ -292,6 +317,13 @@
       { key: "ios",  json: "stremio-ios.json",  label: "iOS / iPadOS" },
       { key: "tvos", json: "stremio-tvos.json", label: "Apple TV" }
     ];
+
+    // Older builds still carry the generated placeholder ("Stremio 2.0.4
+    // (build 19)."), which is not worth showing as release notes.
+    function isRealNote(text) {
+      return typeof text === "string" && text.trim() !== "" &&
+             !/^\s*.+\s+\d+(\.\d+)*\s+\(build\s+\d+\)\.\s*$/.test(text);
+    }
 
     function fmtMB(bytes) {
       return bytes > 0 ? (bytes / 1048576).toFixed(1) + " MB" : "—";
@@ -368,6 +400,14 @@
             "build " + top.v.buildVersion + " · " + fmtDate(top.v.date) + " · " + fmtMB(top.v.size);
           document.getElementById("meta-" + p.key).textContent =
             all.length + " releases · updated " + fmtDate(top.v.date);
+
+          // Real changelog, when we managed to capture one for this build.
+          var notes = top.v.localizedDescription;
+          if (isRealNote(notes)) {
+            // textContent, never innerHTML: this is upstream-authored text.
+            document.getElementById("notes-" + p.key + "-body").textContent = notes;
+            document.getElementById("notes-" + p.key).hidden = false;
+          }
         }
 
         // versions table
