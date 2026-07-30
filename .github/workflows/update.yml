@@ -48,10 +48,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      - name: Test the publish gate
-        # Runs in well under a second. If the validator itself is broken,
-        # find out before trusting it to guard the push below.
-        run: python3 scripts/test_validate_source.py
+      - name: Run the test suite
+        # Under a second, no network. Covers the publish gate, the prune
+        # safety rails, the IPA parser and the discovery logic — the parts
+        # whose failure would be silent rather than loud.
+        run: python3 -m unittest discover -s scripts -p 'test_*.py'
 
       - name: Run updater (dry-run, log only)
         id: dry

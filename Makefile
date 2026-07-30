@@ -91,7 +91,7 @@ validate:  ## Check the JSON sources are valid and safe to publish (STRICT=1 fai
 
 test:  ## Run the test suite
 	@echo "$(YELLOW)→ Tests$(RESET)"
-	$(PYTHON) scripts/test_validate_source.py
+	$(PYTHON) -m unittest discover -s scripts -p 'test_*.py' -v
 
 audit:  ## Weekly audit: dead-version report + Info.plist metadata verification
 	@echo "$(YELLOW)→ Dead version check$(RESET)"

@@ -172,6 +172,8 @@ Prefer to run your own source (own URL, own update schedule)? Fork and host it i
 
 The repo includes a GitHub Actions workflow that runs `stremio-updater.py` every 6 hours, discovers new Stremio versions, updates the JSON files, and auto-commits. With GitHub Pages enabled, new versions appear in your signing app within minutes.
 
+Every run starts by executing the test suite (`python3 -m unittest discover -s scripts -p 'test_*.py'`, under a second and no network). It covers the parts whose failure would be silent rather than loud: the ZIP/plist parser that reads `minOSVersion` out of a remote IPA, the safety rails on the one script that deletes versions, the version-discovery logic that once missed a release for five straight runs, and the publish gate itself.
+
 Nothing is ever pushed without passing `scripts/validate_source.py` first. Five different scripts write to these JSON files, and whatever lands here reaches users within minutes, so the gate checks more than "is this JSON": every `downloadURL` must be https on Stremio's own CDN (a sideloading source must never send people elsewhere for an unsigned IPA), bundle identifiers must be unique within a source, `sourceURL` must name its own file, no app may be published with zero versions, and sizes, dates and `sha256` values must be plausible. If it fails, the job fails and nothing is published. `scripts/test_validate_source.py` corrupts a known-good source one way at a time to prove the gate still fires.
 
 Each run also, in the same job:
@@ -279,6 +281,10 @@ stremio-altstore/
     ├── fetch_release_notes.py  ← captures each release's real changelog
     ├── sync_legacy_fields.py   ← mirrors newest build for older AltStore clients
     ├── validate_source.py      ← publish gate: is this still a valid, safe source?
+    ├── test_ipa_plist.py       ← ZIP/plist parser, against real archives
+    ├── test_prune_dead.py      ← the safety rails on the script that deletes
+    ├── test_updater_logic.py   ← version discovery and merge invariants
+    ├── test_derived_data.py    ← README render, legacy mirror, notes, hashes
     └── test_validate_source.py ← proves the publish gate actually fires
 ```
 

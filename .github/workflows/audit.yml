@@ -38,6 +38,11 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Run the test suite
+        # This job prunes versions and rewrites metadata, so verify the
+        # safety rails and the publish gate before trusting either.
+        run: python3 -m unittest discover -s scripts -p 'test_*.py'
+
       - name: Prune versions whose IPA is gone
         id: prune
         run: |
