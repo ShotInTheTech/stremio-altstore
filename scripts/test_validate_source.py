@@ -168,6 +168,52 @@ class Corruptions(unittest.TestCase):
         self.assertTrue(any("not valid json" in e.lower() for e in rep.errors), rep.errors)
 
 
+def with_legacy(doc: dict) -> dict:
+    """Add the legacy app-level mirror the way sync_legacy_fields.py would."""
+    app = doc["apps"][0]
+    newest = app["versions"][0]
+    app.update({
+        "version": newest["version"],
+        "versionDate": newest["date"],
+        "versionDescription": newest.get("localizedDescription", "notes"),
+        "downloadURL": newest["downloadURL"],
+        "size": newest["size"],
+        "minOSVersion": newest["minOSVersion"],
+    })
+    return doc
+
+
+class LegacyMirror(unittest.TestCase):
+    """Old clients read flat app-level fields; they must agree with versions[0]."""
+
+    def test_correct_mirror_passes(self):
+        d = with_legacy(copy.deepcopy(GOOD))
+        d["apps"][0]["versions"][0]["localizedDescription"] = "feat: something real"
+        d["apps"][0]["versionDescription"] = "feat: something real"
+        rep = run(d)
+        self.assertEqual(rep.errors, [], rep.errors)
+
+    def test_mirror_pointing_at_a_different_build_is_rejected(self):
+        # The dangerous case: old clients would install a different IPA
+        # than new ones from the same entry.
+        d = with_legacy(copy.deepcopy(GOOD))
+        d["apps"][0]["downloadURL"] = "https://dl.strem.io/apple/2.0.5b20/ios/stremio_iOS.ipa"
+        rep = run(d)
+        self.assertTrue(any("does not match the newest version" in e for e in rep.errors), rep.errors)
+
+    def test_partial_mirror_is_rejected(self):
+        d = with_legacy(copy.deepcopy(GOOD))
+        del d["apps"][0]["versionDescription"]
+        rep = run(d)
+        self.assertTrue(any("versionDescription" in e for e in rep.errors), rep.errors)
+
+    def test_absent_mirror_only_warns(self):
+        # A source without legacy fields is still valid, just less compatible.
+        rep = run(copy.deepcopy(GOOD))
+        self.assertEqual(rep.errors, [], rep.errors)
+        self.assertTrue(any("legacy app-level fields" in w for w in rep.warnings), rep.warnings)
+
+
 class Warnings(unittest.TestCase):
     def test_missing_sha256_warns_but_passes(self):
         d = copy.deepcopy(GOOD)

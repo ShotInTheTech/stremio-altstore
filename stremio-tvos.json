@@ -88,7 +88,13 @@
           "sha256": "119eac67bd794cb67b4b4edad990b037828748a2c0b2522f1805ad6eebefa23e",
           "minOSVersion": "15.0"
         }
-      ]
+      ],
+      "version": "2.0.6",
+      "versionDate": "2026-07-22",
+      "versionDescription": "feat: new desktop like UI for player and navigation on iPadOS",
+      "downloadURL": "https://dl.strem.io/apple/2.0.6b21/tvos/stremio_tvOS.ipa",
+      "size": 73987585,
+      "minOSVersion": "15.0"
     }
   ],
   "news": []

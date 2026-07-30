@@ -128,7 +128,13 @@
           "sha256": "61fd16aec965a6dd728b24a057e2c2d579477b9e6677b61166e29e1dd5c0fb1d",
           "minOSVersion": "13.0"
         }
-      ]
+      ],
+      "version": "2.0.6",
+      "versionDate": "2026-07-22",
+      "versionDescription": "feat: new desktop like UI for player and navigation on iPadOS",
+      "downloadURL": "https://dl.strem.io/apple/2.0.6b21/ios/stremio_iOS.ipa",
+      "size": 75942223,
+      "minOSVersion": "13.0"
     }
   ],
   "news": []

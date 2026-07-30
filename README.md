@@ -177,6 +177,7 @@ Nothing is ever pushed without passing `scripts/validate_source.py` first. Five 
 Each run also, in the same job:
 
 - **Captures release notes** — `scripts/fetch_release_notes.py` copies each build's real changelog from Stremio's own AltStore source (its download URLs are the marketplace format this repo works around, but its release notes are usable). That source only carries the newest couple of builds, so this has to run on the same cadence to catch each changelog before it rolls out of their window — and it never drops one it has already captured. Builds released before this existed keep their generated placeholder; there is no public archive to backfill them from.
+- **Mirrors the newest build into the legacy app-level fields** — the AltStore format has two generations: modern clients read each app's `versions` array, while AltStore Classic and several forks read flat `version` / `versionDescription` / `downloadURL` fields on the app itself. `scripts/sync_legacy_fields.py` keeps both in step, so older clients show the real changelog instead of falling back to something like "Stremio 2.0.6 build 21". The publish gate rejects a mirror that disagrees with the newest version, since old and new clients installing different builds from one entry would be worse than shipping no legacy fields at all.
 - **Backfills integrity hashes** — `scripts/add_hashes.py` computes the `sha256` of a few IPAs per run (newest first, budget-limited so it never risks the job's time limit), so every version eventually carries a hash that signing apps can verify the download against.
 - **Regenerates the version tables** in this README from the JSON.
 
@@ -276,6 +277,7 @@ stremio-altstore/
     ├── check_cdn.py            ← CDN health canary (opens an issue if broken)
     ├── prune_dead.py           ← removes versions whose IPA is gone (404)
     ├── fetch_release_notes.py  ← captures each release's real changelog
+    ├── sync_legacy_fields.py   ← mirrors newest build for older AltStore clients
     ├── validate_source.py      ← publish gate: is this still a valid, safe source?
     └── test_validate_source.py ← proves the publish gate actually fires
 ```

@@ -53,6 +53,17 @@ SOURCES = ["stremio-ios.json", "stremio-tvos.json"]
 # nobody vetted.
 ALLOWED_IPA_HOSTS = {"dl.strem.io"}
 
+# Legacy app-level fields (AltStore Classic and older forks) and the version
+# key each one mirrors. Kept in step with scripts/sync_legacy_fields.py.
+LEGACY_MAP = {
+    "version": "version",
+    "versionDate": "date",
+    "versionDescription": "localizedDescription",
+    "downloadURL": "downloadURL",
+    "size": "size",
+    "minOSVersion": "minOSVersion",
+}
+
 BUNDLE_RE = re.compile(r"^[A-Za-z0-9.-]+\.[A-Za-z0-9-]+$")
 VERSION_RE = re.compile(r"^\d+(\.\d+)*$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -201,7 +212,38 @@ def validate_app(rep: Report, where: str, app: object) -> str | None:
     if not app.get("screenshots"):
         rep.warn(where, "no screenshots — the entry looks bare in signing apps")
 
+    _check_legacy_mirror(rep, where, app, versions)
+
     return bundle if isinstance(bundle, str) else None
+
+
+def _check_legacy_mirror(rep: Report, where: str, app: dict, versions: list) -> None:
+    """Older clients read flat app-level fields instead of the versions array.
+
+    They must describe the same build as versions[0], or old and new clients
+    would install different things from one entry.
+    """
+    real = [v for v in versions if isinstance(v, dict)]
+    if not real:
+        return
+    newest = max(real, key=_version_key)
+
+    present = [k for k in LEGACY_MAP if k in app]
+    if not present:
+        rep.warn(where, "no legacy app-level fields; older clients (AltStore Classic "
+                        "and some forks) will show no release notes")
+        return
+
+    for legacy_key, version_key in LEGACY_MAP.items():
+        if legacy_key not in app:
+            rep.error(where, f"legacy field {legacy_key!r} is missing while others are present; "
+                             f"older clients would see an inconsistent entry")
+            continue
+        expected = newest.get(version_key)
+        if expected is not None and app[legacy_key] != expected:
+            rep.error(where, f"legacy {legacy_key!r} does not match the newest version "
+                             f"({app[legacy_key]!r} vs {expected!r}); old and new clients "
+                             f"would disagree about which build this is")
 
 
 def validate_source(rep: Report, path: Path) -> None:

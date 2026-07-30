@@ -56,6 +56,12 @@ jobs:
       - name: Regenerate README version tables
         run: python3 scripts/render_readme.py
 
+      - name: Mirror newest build into legacy fields
+        # AltStore Classic and some forks read flat app-level fields instead of
+        # the versions array; without them they show no release notes. Must run
+        # after anything that changes versions, and before validation.
+        run: python3 scripts/sync_legacy_fields.py
+
       - name: Validate sources before publishing
         # The prune and --fix steps above rewrite these files; refuse to
         # publish the result if it is no longer a valid, safe source.
