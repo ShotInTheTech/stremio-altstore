@@ -56,6 +56,11 @@ jobs:
       - name: Regenerate README version tables
         run: python3 scripts/render_readme.py
 
+      - name: Validate sources before publishing
+        # The prune and --fix steps above rewrite these files; refuse to
+        # publish the result if it is no longer a valid, safe source.
+        run: python3 scripts/validate_source.py
+
       - name: Commit and push any corrections
         id: commit
         run: |

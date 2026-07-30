@@ -172,6 +172,8 @@ Prefer to run your own source (own URL, own update schedule)? Fork and host it i
 
 The repo includes a GitHub Actions workflow that runs `stremio-updater.py` every 6 hours, discovers new Stremio versions, updates the JSON files, and auto-commits. With GitHub Pages enabled, new versions appear in your signing app within minutes.
 
+Nothing is ever pushed without passing `scripts/validate_source.py` first. Five different scripts write to these JSON files, and whatever lands here reaches users within minutes, so the gate checks more than "is this JSON": every `downloadURL` must be https on Stremio's own CDN (a sideloading source must never send people elsewhere for an unsigned IPA), bundle identifiers must be unique within a source, `sourceURL` must name its own file, no app may be published with zero versions, and sizes, dates and `sha256` values must be plausible. If it fails, the job fails and nothing is published. `scripts/test_validate_source.py` corrupts a known-good source one way at a time to prove the gate still fires.
+
 Each run also, in the same job:
 
 - **Backfills integrity hashes** — `scripts/add_hashes.py` computes the `sha256` of a few IPAs per run (newest first, budget-limited so it never risks the job's time limit), so every version eventually carries a hash that signing apps can verify the download against.
@@ -271,7 +273,9 @@ stremio-altstore/
     ├── render_readme.py        ← regenerates the version tables above
     ├── add_hashes.py           ← backfills sha256 integrity hashes (budgeted)
     ├── check_cdn.py            ← CDN health canary (opens an issue if broken)
-    └── prune_dead.py           ← removes versions whose IPA is gone (404)
+    ├── prune_dead.py           ← removes versions whose IPA is gone (404)
+    ├── validate_source.py      ← publish gate: is this still a valid, safe source?
+    └── test_validate_source.py ← proves the publish gate actually fires
 ```
 
 ### Why two JSON files?
