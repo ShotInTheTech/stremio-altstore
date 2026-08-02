@@ -97,5 +97,26 @@
       "minOSVersion": "15.0"
     }
   ],
-  "news": []
+  "news": [
+    {
+      "title": "Stremio 2.0.6",
+      "identifier": "com-stremio-pal-2-0-6-b21-apple-tv",
+      "caption": "feat: new desktop like UI for player and navigation on iPadOS",
+      "tintColor": "7055D9",
+      "date": "2026-07-22",
+      "notify": false,
+      "appID": "com.stremio.pal",
+      "imageURL": "https://www.stremio.com/website/stremio-logo-small.png"
+    },
+    {
+      "title": "Stremio 2.0.3",
+      "identifier": "com-stremio-pal-2-0-3-b18-apple-tv",
+      "caption": "feat: native Stremio app for macOS",
+      "tintColor": "7055D9",
+      "date": "2026-07-09",
+      "notify": false,
+      "appID": "com.stremio.pal",
+      "imageURL": "https://www.stremio.com/website/stremio-logo-small.png"
+    }
+  ]
 }

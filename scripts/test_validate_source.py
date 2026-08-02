@@ -178,6 +178,45 @@ class Corruptions(unittest.TestCase):
         rep = run(d)
         self.assertEqual(rep.errors, [], rep.errors)
 
+    def test_two_notifying_news_items_are_rejected(self):
+        # The spam failure mode: several pushes at once.
+        d = copy.deepcopy(GOOD)
+        d["news"] = [
+            {"title": "A", "identifier": "a", "caption": "c", "date": "2026-07-22", "notify": True},
+            {"title": "B", "identifier": "b", "caption": "c", "date": "2026-07-21", "notify": True},
+        ]
+        self.assert_rejected(d, "at most one")
+
+    def test_duplicate_news_identifier_is_rejected(self):
+        # A repeated identifier can make a client re-notify for a seen story.
+        d = copy.deepcopy(GOOD)
+        d["news"] = [
+            {"title": "A", "identifier": "same", "caption": "c", "date": "2026-07-22", "notify": False},
+            {"title": "B", "identifier": "same", "caption": "c", "date": "2026-07-21", "notify": False},
+        ]
+        self.assert_rejected(d, "already used")
+
+    def test_news_appid_must_point_at_an_app_in_this_source(self):
+        d = copy.deepcopy(GOOD)
+        d["news"] = [{"title": "A", "identifier": "a", "caption": "c", "date": "2026-07-22",
+                      "notify": False, "appID": "com.example.ghost"}]
+        self.assert_rejected(d, "not an app in this source")
+
+    def test_news_notify_must_be_boolean(self):
+        d = copy.deepcopy(GOOD)
+        d["news"] = [{"title": "A", "identifier": "a", "caption": "c", "date": "2026-07-22",
+                      "notify": "yes"}]
+        self.assert_rejected(d, "notify must be")
+
+    def test_valid_news_item_passes(self):
+        d = copy.deepcopy(GOOD)
+        d["news"] = [{"title": "Stremio 2.0.6", "identifier": "stremio-2-0-6", "caption": "feat: x",
+                      "tintColor": "7055D9", "date": "2026-07-22", "notify": True,
+                      "appID": "com.stremio.pal",
+                      "imageURL": "https://cdn.example.com/icon.png"}]
+        rep = run(d)
+        self.assertEqual(rep.errors, [], rep.errors)
+
     def test_malformed_json(self):
         rep = Report()
         with tempfile.TemporaryDirectory() as td:

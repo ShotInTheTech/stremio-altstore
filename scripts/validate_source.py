@@ -68,6 +68,8 @@ BUNDLE_RE = re.compile(r"^[A-Za-z0-9.-]+\.[A-Za-z0-9-]+$")
 VERSION_RE = re.compile(r"^\d+(\.\d+)*$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+# AltStore's own feed writes these without a leading "#"; accept either.
+HEX_COLOR_RE = re.compile(r"^#?[0-9A-Fa-f]{6}$")
 
 MIN_IPA_BYTES = 1 * 1024 * 1024        # 1 MB — anything smaller is corruption
 MAX_IPA_BYTES = 500 * 1024 * 1024      # 500 MB — anything larger is suspicious
@@ -216,6 +218,74 @@ def validate_app(rep: Report, where: str, app: object) -> str | None:
     return bundle if isinstance(bundle, str) else None
 
 
+def _check_news(rep: Report, where: str, news: object, apps: object) -> None:
+    """News items are rendered in-app and can raise a push notification.
+
+    The failure that matters is notification spam: unstable identifiers make a
+    client treat the same story as new every run, and several notifying items
+    at once wake a phone repeatedly. Both are checked here rather than trusted
+    to the generator.
+    """
+    if news is None:
+        return
+    if not isinstance(news, list):
+        rep.error(where, "news must be a list when present")
+        return
+
+    bundles = {a.get("bundleIdentifier") for a in apps if isinstance(a, dict)} \
+        if isinstance(apps, list) else set()
+    seen: dict[str, int] = {}
+    notifying: list[str] = []
+
+    for i, item in enumerate(news):
+        nwhere = f"{where} · news[{i}]"
+        if not isinstance(item, dict):
+            rep.error(nwhere, "news item is not an object")
+            continue
+
+        for key in ("title", "identifier", "caption"):
+            if not isinstance(item.get(key), str) or not item.get(key, "").strip():
+                rep.error(nwhere, f"{key} is missing or empty")
+
+        ident = item.get("identifier")
+        if isinstance(ident, str) and ident:
+            if ident in seen:
+                # A duplicate makes the feed ambiguous and can re-notify.
+                rep.error(nwhere, f"identifier {ident!r} already used by news[{seen[ident]}]")
+            else:
+                seen[ident] = i
+
+        d = item.get("date")
+        if not isinstance(d, str) or not DATE_RE.match(d or ""):
+            rep.error(nwhere, f"date must be YYYY-MM-DD, got {d!r}")
+
+        if not isinstance(item.get("notify"), bool):
+            rep.error(nwhere, f"notify must be true or false, got {item.get('notify')!r}")
+        elif item["notify"]:
+            notifying.append(str(ident))
+
+        tint = item.get("tintColor")
+        if tint is not None and not (isinstance(tint, str) and HEX_COLOR_RE.match(tint)):
+            rep.error(nwhere, f"tintColor must be a hex colour, got {tint!r}")
+
+        for key in ("imageURL", "url"):
+            if item.get(key) is not None:
+                _check_url(rep, nwhere, item[key], field=key)
+
+        app_id = item.get("appID")
+        if app_id is not None:
+            if not isinstance(app_id, str):
+                rep.error(nwhere, f"appID must be a string, got {type(app_id).__name__}")
+            elif bundles and app_id not in bundles:
+                # A dangling appID makes the item untappable in the client.
+                rep.error(nwhere, f"appID {app_id!r} is not an app in this source")
+
+    if len(notifying) > 1:
+        rep.error(where, f"{len(notifying)} news items request a notification "
+                         f"({', '.join(notifying)}); at most one may, or users get "
+                         f"a burst of pushes")
+
+
 def _check_screenshots(rep: Report, where: str, shots: object) -> None:
     """Screenshots are third-party image URLs that signing apps will load.
 
@@ -310,9 +380,7 @@ def validate_source(rep: Report, path: Path) -> None:
         if data.get(key) is not None:
             _check_url(rep, where, data.get(key), field=key)
 
-    news = data.get("news")
-    if news is not None and not isinstance(news, list):
-        rep.error(where, "news must be a list when present")
+    _check_news(rep, where, data.get("news"), data.get("apps"))
 
     apps = data.get("apps")
     if not isinstance(apps, list) or not apps:

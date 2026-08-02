@@ -67,6 +67,12 @@ jobs:
       - name: Regenerate README version tables
         run: python3 scripts/render_readme.py
 
+      - name: Rebuild the in-app news feed
+        # Turns captured changelogs into the `news` array signing apps render.
+        # Must run after the notes capture and before validation, which
+        # enforces that at most one item asks to notify.
+        run: python3 scripts/build_news.py
+
       - name: Mirror newest build into legacy fields
         # AltStore Classic and some forks read flat app-level fields instead of
         # the versions array; without them they show no release notes. Must run

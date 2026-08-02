@@ -12,6 +12,7 @@
 #   make audit       — full weekly audit: prune report + metadata verification
 #   make notes       — capture real release notes from Stremio's own source
 #   make shots       — capture App Store screenshots from Stremio's source
+#   make news        — rebuild the in-app news feed from captured changelogs
 #   make legacy      — mirror newest build into legacy app-level fields
 #   make validate    — check the JSON sources are valid and safe to publish
 #   make test        — run the test suite
@@ -30,7 +31,7 @@ GREEN := \033[32m
 YELLOW := \033[33m
 RESET := \033[0m
 
-.PHONY: help dry-run update verify readme hashes canary prune audit notes shots legacy validate test lint format clean set-urls ios tvos stats
+.PHONY: help dry-run update verify readme hashes canary prune audit notes shots news legacy validate test lint format clean set-urls ios tvos stats
 
 help:  ## Show this help message
 	@echo ""
@@ -85,6 +86,10 @@ notes:  ## Capture real release notes from Stremio's source (DRY=1 to preview)
 shots:  ## Capture App Store screenshots from Stremio's source (DRY=1 to preview)
 	@echo "$(YELLOW)→ Capture screenshots$(RESET)"
 	$(PYTHON) scripts/fetch_screenshots.py $(if $(DRY),--dry-run,)
+
+news:  ## Rebuild the in-app news feed from captured changelogs (DRY=1 to preview)
+	@echo "$(YELLOW)→ Rebuild news feed$(RESET)"
+	-@$(PYTHON) scripts/build_news.py $(if $(DRY),--dry-run,)
 
 legacy:  ## Mirror the newest build into legacy app-level fields (DRY=1 to preview)
 	@echo "$(YELLOW)→ Sync legacy fields$(RESET)"

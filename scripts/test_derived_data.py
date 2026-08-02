@@ -26,6 +26,7 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "scripts"))
 import add_hashes  # noqa: E402
+import build_news  # noqa: E402
 import fetch_release_notes as notes  # noqa: E402
 import render_readme  # noqa: E402
 import sync_legacy_fields as legacy  # noqa: E402
@@ -187,6 +188,79 @@ class LegacyMirror(unittest.TestCase):
         app["versions"].insert(0, version("2.0.6", "21"))
         self.assertTrue(legacy.sync_app(app))
         self.assertEqual(app["version"], "2.0.6")
+
+
+# --------------------------------------------------------------------------
+# build_news — changelogs into an in-app feed
+# --------------------------------------------------------------------------
+
+from datetime import date, timedelta  # noqa: E402
+
+
+class NewsFeed(unittest.TestCase):
+    TODAY = date(2026, 7, 30)
+
+    def src(self, versions):
+        d = doc(versions)
+        d["apps"][0]["iconURL"] = "https://cdn.example.com/icon.png"
+        return d
+
+    def build(self, versions, today=None):
+        return build_news.build_items(self.src(versions), "iPhone & iPad",
+                                      today=today or self.TODAY)
+
+    def test_only_releases_with_a_real_changelog_appear(self):
+        items = self.build([
+            version("2.0.6", "21", localizedDescription="feat: real thing"),
+            version("2.0.5", "20"),  # placeholder
+        ])
+        self.assertEqual([i["title"] for i in items], ["Stremio 2.0.6"])
+
+    def test_identifiers_are_stable_across_runs(self):
+        # An identifier that moves would make clients re-notify for old news.
+        vs = [version("2.0.6", "21", localizedDescription="feat: x")]
+        first = [i["identifier"] for i in self.build(vs)]
+        later = [i["identifier"] for i in self.build(vs, today=self.TODAY + timedelta(days=90))]
+        self.assertEqual(first, later)
+
+    def test_at_most_one_item_notifies(self):
+        items = self.build([
+            version("2.0.6", "21", date="2026-07-29", localizedDescription="feat: a"),
+            version("2.0.5", "20", date="2026-07-28", localizedDescription="feat: b"),
+            version("2.0.4", "19", date="2026-07-27", localizedDescription="feat: c"),
+        ])
+        self.assertEqual(sum(1 for i in items if i["notify"]), 1)
+        self.assertTrue(items[0]["notify"], "only the newest may notify")
+
+    def test_a_stale_release_never_notifies(self):
+        # Publishing the feed for the first time must not wake anyone about a
+        # build they already have.
+        items = self.build([version("2.0.6", "21", date="2026-06-01",
+                                    localizedDescription="feat: old news")])
+        self.assertFalse(items[0]["notify"])
+
+    def test_feed_is_capped(self):
+        vs = [version("2.0.%d" % i, str(i), localizedDescription="feat: %d" % i)
+              for i in range(30)]
+        self.assertLessEqual(len(self.build(vs)), build_news.MAX_ITEMS)
+
+    def test_caption_is_the_first_line_and_bounded(self):
+        items = self.build([version("2.0.6", "21",
+                                    localizedDescription="feat: headline\n\nfix: detail")])
+        self.assertEqual(items[0]["caption"], "feat: headline")
+        long = self.build([version("2.0.6", "21", localizedDescription="x" * 500)])
+        self.assertLessEqual(len(long[0]["caption"]), build_news.MAX_CAPTION)
+
+    def test_item_links_back_to_the_app(self):
+        items = self.build([version("2.0.6", "21", localizedDescription="feat: x")])
+        self.assertEqual(items[0]["appID"], "com.stremio.pal")
+        self.assertEqual(items[0]["imageURL"], "https://cdn.example.com/icon.png")
+
+    def test_platforms_get_distinct_identifiers(self):
+        vs = [version("2.0.6", "21", localizedDescription="feat: x")]
+        ios = build_news.build_items(self.src(vs), "iPhone & iPad", today=self.TODAY)
+        tv = build_news.build_items(self.src(vs), "Apple TV", today=self.TODAY)
+        self.assertNotEqual(ios[0]["identifier"], tv[0]["identifier"])
 
 
 # --------------------------------------------------------------------------
