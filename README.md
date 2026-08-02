@@ -266,6 +266,7 @@ stremio-altstore/
 ├── ipa_plist.py                ← shared HTTP-Range IPA Info.plist parser
 ├── install.html                ← one-tap install landing page (GitHub Pages)
 ├── .github/
+│   ├── dependabot.yml          ← keeps the workflow actions current
 │   ├── workflows/
 │   │   ├── update.yml          ← auto-update every 6 hours + CDN canary
 │   │   └── audit.yml           ← weekly dead-IPA prune + metadata verify

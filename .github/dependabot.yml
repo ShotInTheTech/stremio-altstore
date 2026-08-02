@@ -1,0 +1,26 @@
+version: 2
+
+# Only GitHub Actions: the Python here is standard library only, so there is
+# no dependency manifest to watch. This exists because the actions silently
+# fell behind until a Node 20 deprecation warning showed up in every run and
+# had to be chased by hand.
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:30"
+      timezone: "Etc/UTC"
+    # One PR for all of them rather than three: these move together and the
+    # workflows are short enough to review in a single diff.
+    groups:
+      actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    labels:
+      - "dependencies"
+    open-pull-requests-limit: 3
