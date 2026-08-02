@@ -159,6 +159,25 @@ class Corruptions(unittest.TestCase):
         d["apps"][0]["versions"][0]["localizedDescription"] = {"text": "nope"}
         self.assert_rejected(d, "must be a string")
 
+    def test_screenshot_over_plain_http_is_rejected(self):
+        d = copy.deepcopy(GOOD)
+        d["apps"][0]["screenshots"] = ["http://cdn.example.com/a.jpg"]
+        self.assert_rejected(d, "https")
+
+    def test_screenshot_of_the_wrong_shape_is_rejected(self):
+        d = copy.deepcopy(GOOD)
+        d["apps"][0]["screenshots"] = {"iphone": [{"nope": "https://cdn/a.jpg"}]}
+        self.assert_rejected(d, "imageURL")
+
+    def test_device_keyed_screenshots_are_accepted(self):
+        d = copy.deepcopy(GOOD)
+        d["apps"][0]["screenshots"] = {
+            "iphone": ["https://cdn.example.com/a.jpg"],
+            "ipad": [{"imageURL": "https://cdn.example.com/b.jpg", "width": 2048, "height": 2732}],
+        }
+        rep = run(d)
+        self.assertEqual(rep.errors, [], rep.errors)
+
     def test_malformed_json(self):
         rep = Report()
         with tempfile.TemporaryDirectory() as td:

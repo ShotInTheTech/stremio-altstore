@@ -188,6 +188,7 @@ Each run also, in the same job:
 The updater only ever looks for *new* builds, so a second workflow (`.github/workflows/audit.yml`) runs weekly to catch what that misses:
 
 - **Dead downloads** — `scripts/prune_dead.py` HEAD-checks every listed IPA. When Stremio pulls an old build, the entry is removed so nobody is left tapping a link that 404s. It is deliberately cautious: only 404/410 counts (never a timeout or 5xx), each one is re-checked, and it prunes nothing at all if the newest version is missing or if many die at once — those look like a CDN change, not individual pulls. Dropping an app that has no working versions left is left to a human.
+- **Screenshots** — `scripts/fetch_screenshots.py` copies the real App Store screenshots from Stremio's own source, so entries show a gallery instead of a bare name and icon. Upstream only publishes iPhone and iPad shots, so the tvOS source is deliberately left without any rather than showing phone screenshots for a TV app.
 - **Metadata drift** — `scripts/verify_bundle_ids.py` reads each IPA's real `Info.plist` and compares the bundle identifier, version, build and `MinimumOSVersion` against what the JSON claims. It corrects `minOSVersion` in place (the IPA is the authority, and the field only advertises compatibility); a mismatched bundle identifier, version or build defines the entry's identity, so those are reported for a human instead.
 
 Anything needing a decision opens a single deduplicated GitHub issue.
@@ -279,6 +280,7 @@ stremio-altstore/
     ├── check_cdn.py            ← CDN health canary (opens an issue if broken)
     ├── prune_dead.py           ← removes versions whose IPA is gone (404)
     ├── fetch_release_notes.py  ← captures each release's real changelog
+    ├── fetch_screenshots.py    ← captures App Store screenshots (weekly)
     ├── sync_legacy_fields.py   ← mirrors newest build for older AltStore clients
     ├── validate_source.py      ← publish gate: is this still a valid, safe source?
     ├── test_ipa_plist.py       ← ZIP/plist parser, against real archives

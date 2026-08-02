@@ -157,6 +157,30 @@ class LegacyMirror(unittest.TestCase):
         legacy.sync_app(app)
         self.assertEqual(legacy.sync_app(app), [], "second run should change nothing")
 
+    def test_screenshots_are_flattened_for_legacy_clients(self):
+        # The modern field is device-keyed and may hold objects; the legacy
+        # one is a plain URL list, so copying it across would be malformed.
+        app = {"name": "Stremio", "versions": [version("2.0.6", "21")],
+               "screenshots": {"iphone": ["https://cdn/a.jpg"],
+                               "ipad": [{"imageURL": "https://cdn/b.jpg",
+                                         "width": 2048, "height": 2732}]}}
+        legacy.sync_app(app)
+        self.assertEqual(app["screenshotURLs"], ["https://cdn/a.jpg", "https://cdn/b.jpg"])
+
+    def test_flattening_a_plain_list_is_a_passthrough(self):
+        self.assertEqual(legacy.flatten_screenshots(["https://cdn/a.jpg"]),
+                         ["https://cdn/a.jpg"])
+
+    def test_flattening_is_stable_across_runs(self):
+        # Dict order must not make the bot rewrite the file on every run.
+        shots = {"ipad": [{"imageURL": "https://cdn/b.jpg"}], "iphone": ["https://cdn/a.jpg"]}
+        self.assertEqual(legacy.flatten_screenshots(shots),
+                         legacy.flatten_screenshots(dict(reversed(list(shots.items())))))
+
+    def test_flattening_ignores_junk(self):
+        self.assertEqual(legacy.flatten_screenshots({"iphone": [42, None, {"nope": 1}]}), [])
+        self.assertEqual(legacy.flatten_screenshots(None), [])
+
     def test_mirror_follows_a_newly_added_build(self):
         app = {"name": "Stremio", "versions": [version("2.0.5", "20")]}
         legacy.sync_app(app)

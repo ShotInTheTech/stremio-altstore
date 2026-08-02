@@ -58,6 +58,12 @@ jobs:
           python3 scripts/verify_bundle_ids.py --verbose --fix 2>&1 | tee verify.txt
           echo "rc=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
 
+      - name: Refresh screenshots
+        # Screenshots are stable, unlike release notes, so weekly is enough.
+        # Never fails the run: a gallery is a nicety, the source is the product.
+        continue-on-error: true
+        run: python3 scripts/fetch_screenshots.py
+
       - name: Regenerate README version tables
         run: python3 scripts/render_readme.py
 

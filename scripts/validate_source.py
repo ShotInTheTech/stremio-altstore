@@ -209,12 +209,45 @@ def validate_app(rep: Report, where: str, app: object) -> str | None:
     if ordered != [v for v in versions if isinstance(v, dict)]:
         rep.warn(where, "versions are not newest-first; some signing apps show the first entry")
 
-    if not app.get("screenshots"):
-        rep.warn(where, "no screenshots — the entry looks bare in signing apps")
+    _check_screenshots(rep, where, app.get("screenshots"))
 
     _check_legacy_mirror(rep, where, app, versions)
 
     return bundle if isinstance(bundle, str) else None
+
+
+def _check_screenshots(rep: Report, where: str, shots: object) -> None:
+    """Screenshots are third-party image URLs that signing apps will load.
+
+    Accepts both shapes the format allows: a flat list, or a dict keyed by
+    device. Every URL must be https — a plain-http image would break under
+    ATS and leak what the user is browsing.
+    """
+    if not shots:
+        rep.warn(where, "no screenshots — the entry looks bare in signing apps")
+        return
+
+    if isinstance(shots, dict):
+        buckets = list(shots.items())
+    elif isinstance(shots, list):
+        buckets = [("", shots)]
+    else:
+        rep.error(where, f"screenshots must be a list or a device-keyed object, "
+                         f"got {type(shots).__name__}")
+        return
+
+    for device, items in buckets:
+        label = f"screenshots[{device}]" if device else "screenshots"
+        if not isinstance(items, list):
+            rep.error(where, f"{label} must be a list, got {type(items).__name__}")
+            continue
+        for i, item in enumerate(items):
+            url = item if isinstance(item, str) else (
+                item.get("imageURL") if isinstance(item, dict) else None)
+            if url is None:
+                rep.error(where, f"{label}[{i}] is neither a URL nor an object with imageURL")
+                continue
+            _check_url(rep, where, url, field=f"{label}[{i}]")
 
 
 def _check_legacy_mirror(rep: Report, where: str, app: dict, versions: list) -> None:

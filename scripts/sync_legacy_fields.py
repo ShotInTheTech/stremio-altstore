@@ -81,12 +81,41 @@ def sync_app(app: dict) -> list[str]:
         if app.get(key) != value:
             app[key] = value
             changed.append(key)
-    # Legacy clients look for screenshotURLs rather than screenshots.
-    shots = app.get("screenshots")
-    if shots and app.get("screenshotURLs") != shots:
-        app["screenshotURLs"] = shots
+    # Legacy clients look for screenshotURLs, which is a flat list of URLs —
+    # the modern field is keyed by device and may hold {imageURL,...} objects,
+    # so it has to be flattened rather than copied across.
+    urls = flatten_screenshots(app.get("screenshots"))
+    if urls and app.get("screenshotURLs") != urls:
+        app["screenshotURLs"] = urls
         changed.append("screenshotURLs")
     return changed
+
+
+def flatten_screenshots(shots: object) -> list[str]:
+    """Modern `screenshots` (device-keyed, possibly objects) -> plain URL list."""
+    buckets: list = []
+    if isinstance(shots, dict):
+        # Phone shots lead: the legacy flat gallery has no device context, and
+        # it is overwhelmingly viewed on a phone. Ordering is fixed rather than
+        # dict order so the mirror does not churn between runs.
+        def rank(device: str) -> tuple:
+            priority = {"iphone": 0, "ipad": 1, "appletv": 2, "tv": 2}
+            return (priority.get(device.lower(), 9), device.lower())
+
+        for device in sorted(shots, key=rank):
+            items = shots[device]
+            if isinstance(items, list):
+                buckets.extend(items)
+    elif isinstance(shots, list):
+        buckets = shots
+
+    urls: list[str] = []
+    for item in buckets:
+        if isinstance(item, str):
+            urls.append(item)
+        elif isinstance(item, dict) and isinstance(item.get("imageURL"), str):
+            urls.append(item["imageURL"])
+    return urls
 
 
 def main() -> int:
