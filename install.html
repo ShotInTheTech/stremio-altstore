@@ -184,6 +184,32 @@
       padding: 1px 8px; margin-left: 8px; vertical-align: 1px;
     }
     .vt .dim { color: var(--dim); }
+
+    /* Rows whose build has a changelog expand to show it. */
+    .vt tr.has-notes { cursor: pointer; }
+    .vt tr.has-notes:hover td { background: rgba(112, 85, 217, .07); }
+    .vt tr.has-notes:focus-visible { outline: 2px solid var(--purple); outline-offset: -2px; }
+    .chev {
+      display: inline-block; margin-right: 7px; color: var(--faint);
+      transition: transform .15s ease, color .15s ease;
+    }
+    .vt tr.open .chev { transform: rotate(90deg); color: var(--purple-hi); }
+    .chev-hint { color: var(--purple-hi); }
+    tr[hidden] { display: none; }
+    .notes-row td { padding: 0; background: #0f0d18; white-space: normal; }
+    .notes-row:hover td { background: #0f0d18; }
+    .notes-wrap { position: relative; }
+    /* Only added once we know the text really is clipped, so a short
+       changelog never gets a fade over nothing. */
+    .notes-wrap.clipped::after {
+      content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 30px;
+      background: linear-gradient(rgba(15, 13, 24, 0), #0f0d18); pointer-events: none;
+    }
+    .notes-box {
+      padding: 12px 16px 16px; font-size: 12.5px; line-height: 1.65;
+      color: var(--dim); white-space: pre-wrap; word-wrap: break-word;
+      max-height: 220px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    }
     .vt a.dl { color: var(--purple-hi); text-decoration: none; font-weight: 600; }
     .vt a.dl:hover { text-decoration: underline; }
     .sha {
@@ -298,8 +324,9 @@
     <section class="versions">
       <h2>Every release, verified</h2>
       <p>Loaded live from the source JSON, so this list is never out of date. Each IPA links
-         straight to Stremio's own CDN. On wider screens every row also shows its SHA‑256
-         fingerprint — tap one to copy.</p>
+         straight to Stremio's own CDN. Rows marked&nbsp;<span class="chev-hint">▸</span> have a
+         changelog — tap to read it. On wider screens every row also shows its SHA‑256
+         fingerprint, which you can tap to copy.</p>
       <div id="version-groups"><div class="loading">Loading versions…</div></div>
     </section>
 
@@ -423,8 +450,10 @@
         all.forEach(function (e, i) {
           var tr = document.createElement("tr");
           var sha = e.v.sha256 || "";
+          var notes = isRealNote(e.v.localizedDescription) ? e.v.localizedDescription : null;
           tr.innerHTML =
-            "<td class='ver'>v" + e.v.version + " <span class='dim'>b" + e.v.buildVersion + "</span>" +
+            "<td class='ver'>" + (notes ? "<span class='chev'>▸</span>" : "") +
+              "v" + e.v.version + " <span class='dim'>b" + e.v.buildVersion + "</span>" +
               (i === 0 ? "<span class='chip'>LATEST</span>" : "") + "</td>" +
             "<td class='dim'>" + (e.app.name || "") + "</td>" +
             "<td class='dim'>" + fmtDate(e.v.date) + "</td>" +
@@ -433,6 +462,48 @@
             "<td><a class='dl' href='" + e.v.downloadURL + "'>IPA ↓</a></td>";
           if (sha) bindCopy(tr.querySelector(".sha"), function () { return sha; });
           tb.appendChild(tr);
+
+          // Older builds carry a changelog too; hang it off the row rather
+          // than adding a column, which the phone layout has no room for.
+          if (notes) {
+            tr.classList.add("has-notes");
+            tr.tabIndex = 0;
+            tr.setAttribute("role", "button");
+            tr.setAttribute("aria-expanded", "false");
+
+            var detail = document.createElement("tr");
+            detail.className = "notes-row";
+            detail.hidden = true;
+            var cell = document.createElement("td");
+            cell.colSpan = 6;
+            var wrap = document.createElement("div");
+            wrap.className = "notes-wrap";
+            var box = document.createElement("div");
+            box.className = "notes-box";
+            // textContent, never innerHTML: upstream-authored text.
+            box.textContent = notes;
+            wrap.appendChild(box);
+            cell.appendChild(wrap);
+            detail.appendChild(cell);
+            tb.appendChild(detail);
+
+            var toggle = function (ev) {
+              // Let the hash button and the download link do their own job.
+              if (ev && ev.target && ev.target.closest && ev.target.closest("a, button")) return;
+              var opening = detail.hidden;
+              detail.hidden = !opening;
+              tr.classList.toggle("open", opening);
+              tr.setAttribute("aria-expanded", opening ? "true" : "false");
+              // Measurable only once it is laid out, so decide on first open.
+              if (opening) {
+                wrap.classList.toggle("clipped", box.scrollHeight > box.clientHeight + 1);
+              }
+            };
+            tr.addEventListener("click", toggle);
+            tr.addEventListener("keydown", function (ev) {
+              if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); toggle(ev); }
+            });
+          }
         });
         t.appendChild(tb);
         scroll.appendChild(t);
