@@ -20,12 +20,14 @@ Run:
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
+import ipa_plist  # noqa: E402  (HttpResp, for faking the CDN)
 
 # The module filename has a hyphen, so it cannot be imported by name.
 _spec = importlib.util.spec_from_file_location("stremio_updater", REPO / "stremio-updater.py")
@@ -148,6 +150,77 @@ class MergeVersion(unittest.TestCase):
         order = [(v["version"], v["buildVersion"]) for v in app["versions"]]
         self.assertEqual(order[0], ("2.0.6", "21"))
         self.assertEqual(order[-1], ("2.0.0", "11"))
+
+
+class ScanReach(unittest.TestCase):
+    """Which URLs the scan actually asks for.
+
+    The original miss was not a parsing bug: nothing ever requested the new
+    build's URL. So these assert on the requests themselves.
+    """
+
+    def setUp(self):
+        self._real = updater.http_request
+        updater.upstream_release_tags.cache_clear()
+        self.asked: list[str] = []
+
+    def tearDown(self):
+        updater.http_request = self._real
+        updater.upstream_release_tags.cache_clear()
+
+    def serve_upstream(self, versions, *, status=200, body=None):
+        """Fake CDN: upstream source answers with `versions`, IPAs all 404."""
+        payload = json.dumps({"apps": [{"versions": versions}]}).encode()
+
+        def fake(url, *, method="GET", headers=None, timeout=15):
+            if url == updater.UPSTREAM_SOURCE:
+                return ipa_plist.HttpResp(status, {}, body if body is not None else payload)
+            self.asked.append(url)
+            return ipa_plist.HttpResp(404, {}, None)
+
+        updater.http_request = fake
+
+    def probed_tags(self) -> set[str]:
+        # .../apple/<tag>/<platform>/<file>
+        return {u.split("/apple/")[1].split("/")[0] for u in self.asked}
+
+    def test_probes_a_build_far_beyond_the_local_window(self):
+        # The blind spot: builds are a global counter, so a jump larger than
+        # BUILD_LOOKAHEAD used to be unreachable forever.
+        far = str(21 + updater.BUILD_LOOKAHEAD + 14)
+        self.serve_upstream([{"version": "2.1.0", "buildVersion": far}])
+        updater.scan_cdn({"2.0.6b21"})
+        self.assertIn(f"2.1.0b{far}", self.probed_tags())
+
+    def test_still_probes_the_derived_window(self):
+        self.serve_upstream([{"version": "2.0.6", "buildVersion": "21"}])
+        updater.scan_cdn({"2.0.6b21"})
+        tags = self.probed_tags()
+        self.assertIn("2.0.7b22", tags)
+        self.assertIn("2.1.0b22", tags)
+
+    def test_probes_both_platforms(self):
+        self.serve_upstream([{"version": "2.0.6", "buildVersion": "21"}])
+        updater.scan_cdn({"2.0.6b21"})
+        self.assertTrue(any("/ios/" in u for u in self.asked))
+        self.assertTrue(any("/tvos/" in u for u in self.asked))
+
+    def test_unreachable_upstream_does_not_stop_the_scan(self):
+        # Discovery must survive on its own if Stremio's source is down.
+        self.serve_upstream([], status=503)
+        updater.scan_cdn({"2.0.6b21"})
+        self.assertIn("2.0.7b22", self.probed_tags())
+
+    def test_malformed_upstream_does_not_raise(self):
+        self.serve_upstream([], body=b"<html>not json</html>")
+        updater.scan_cdn({"2.0.6b21"})
+        self.assertIn("2.0.7b22", self.probed_tags())
+
+    def test_probe_count_stays_bounded(self):
+        # Every candidate is a HEAD request against someone else's CDN.
+        self.serve_upstream([{"version": "2.0.6", "buildVersion": "21"}])
+        updater.scan_cdn({"1.3.6b7", "2.0.6b21"})
+        self.assertLess(len(self.asked), 600, "scan should not hammer the CDN")
 
 
 class HttpDateParsing(unittest.TestCase):
