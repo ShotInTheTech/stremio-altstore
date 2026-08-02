@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-#!/usr/bin/env python3
 """
 verify_bundle_ids.py — Standalone IPA Info.plist verifier
 

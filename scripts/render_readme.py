@@ -68,8 +68,10 @@ def _mb(size_bytes) -> str:
         return "?"
     if n <= 0:
         return "?"
-    # Floor to match the updater's own logging convention (size // 1024 // 1024).
-    return f"{n // 1024 // 1024} MB"
+    # One decimal, matching install.html: flooring made a 72.7 MB build and a
+    # 72.4 MB one both read "72 MB", which is needlessly lossy for a number
+    # people use to sanity-check a download.
+    return f"{n / 1048576:.1f} MB"
 
 
 def _app_table(app: dict) -> str:

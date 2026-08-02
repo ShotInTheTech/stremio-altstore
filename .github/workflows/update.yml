@@ -6,7 +6,7 @@ name: Update Stremio source
 
 on:
   schedule:
-    # Her 6 saatte bir (UTC)
+    # Every 6 hours (UTC)
     - cron: "0 */6 * * *"
   workflow_dispatch:
   push:

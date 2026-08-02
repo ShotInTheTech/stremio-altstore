@@ -69,7 +69,7 @@ PLATFORMS = {
 VERSION_RE = re.compile(r"^(\d+\.\d+\.\d+)b(\d+)$")
 
 
-# ----------------------------- Versiyon tarama -----------------------------
+# ---------------------------- Version scanning -----------------------------
 
 def parse_version_tag(tag: str) -> Optional[tuple[str, int]]:
     """'2.0.2b17' -> ('2.0.2', 17)."""
@@ -299,7 +299,7 @@ def process_platform(plat: str, source: dict, found: dict, *, do_info_plist: boo
                     print(f"  [UPDATE] {plat}/{tag} metadata refreshed")
             else:
                 new_count += 1
-                print(f"  [NEW] {plat}/{tag} -> added ({meta['size'] // 1024 // 1024} MB, {meta.get('date')})")
+                print(f"  [NEW] {plat}/{tag} -> added ({meta['size'] / 1048576:.1f} MB, {meta.get('date')})")
     return new_count, update_count
 
 
@@ -335,7 +335,7 @@ def main() -> int:
         print(f"\n=== {PLATFORMS[plat]['label']} ===")
         source = json.loads(json_path.read_text(encoding="utf-8"))
 
-        # Bilinen tag'leri topla
+        # Collect the tags we already list
         known_tags: set[str] = set()
         for app in source["apps"]:
             for v in app.get("versions", []):
@@ -343,7 +343,7 @@ def main() -> int:
                 bv = v.get("buildVersion", "")
                 if ver and bv:
                     known_tags.add(f"{ver}b{bv}")
-        print(f"[INFO] Bilinen versiyon: {len(known_tags)}")
+        print(f"[INFO] Known versions: {len(known_tags)}")
 
         if args.verbose:
             for t in sorted(known_tags):
@@ -381,7 +381,7 @@ def main() -> int:
                 print(f"[DRY-RUN] {plat}: +{new_count} new, ~{update_count} updated (not written)")
             continue
 
-        # Yaz
+        # Write
         json_path.write_text(
             json.dumps(source, indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8",
