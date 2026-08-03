@@ -17,10 +17,15 @@ Notes are third-party text landing in a file that signing apps render, so
 they are sanitised: control characters stripped, line endings normalised,
 runs of blank lines collapsed, and length capped.
 
+Releases that rolled out of upstream's window before this existed can still be
+recovered from Internet Archive captures of that same URL — see --include-archive.
+The archive only ever fills a gap; it never overwrites a note we already hold.
+
 Usage:
     python3 scripts/fetch_release_notes.py              # capture into both sources
     python3 scripts/fetch_release_notes.py --dry-run    # show what would change
     python3 scripts/fetch_release_notes.py --check      # exit 1 if any are missing
+    python3 scripts/fetch_release_notes.py --include-archive   # also mine the archive
 
 Exit codes:
     0 — done (or nothing to do)
@@ -81,9 +86,26 @@ def fetch_upstream_notes() -> dict[tuple[str, str], str]:
     except (UnicodeDecodeError, json.JSONDecodeError) as e:
         raise RuntimeError(f"upstream is not valid JSON: {e}") from e
 
+    return _notes_from_source(data)
+
+
+def _notes_from_source(data: object) -> dict[tuple[str, str], str]:
+    """Pull (version, build) -> sanitised changelog out of a source document."""
     notes: dict[tuple[str, str], str] = {}
-    for app in data.get("apps", []):
-        for v in app.get("versions", []):
+    if not isinstance(data, dict):
+        return notes
+    apps = data.get("apps")
+    if not isinstance(apps, list):
+        return notes
+    # Archive captures can be truncated or half-written, so nothing about the
+    # shape is assumed: a malformed document yields no notes rather than
+    # taking the whole capture step down with it.
+    for app in apps:
+        if not isinstance(app, dict) or not isinstance(app.get("versions"), list):
+            continue
+        for v in app["versions"]:
+            if not isinstance(v, dict):
+                continue
             text = sanitize(v.get("localizedDescription"))
             if not text or is_placeholder(text):
                 continue
@@ -93,12 +115,56 @@ def fetch_upstream_notes() -> dict[tuple[str, str], str]:
     return notes
 
 
+def fetch_archived_notes() -> dict[tuple[str, str], str]:
+    """Changelogs from Wayback Machine captures of the same upstream source.
+
+    Upstream only ever shows the newest couple of builds, so any release that
+    rolled out of that window before this repo started capturing notes is
+    otherwise lost. The Internet Archive happens to hold a few captures of
+    that exact URL, which is the only remaining way to recover them.
+
+    Entirely best-effort: a slow or missing archive just means fewer notes.
+    """
+    cdx = (f"http://web.archive.org/cdx/search/cdx?url={UPSTREAM.split('://', 1)[1]}"
+           f"&output=json&fl=timestamp&filter=statuscode:200&limit=25")
+    resp = http_request(cdx, timeout=30)
+    if resp.status != 200 or not resp.body:
+        print(f"[WARN] archive index unavailable (HTTP {resp.status})", file=sys.stderr)
+        return {}
+    try:
+        rows = json.loads(resp.body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        print("[WARN] archive index was not valid JSON", file=sys.stderr)
+        return {}
+
+    stamps = [r[0] for r in rows[1:] if r and r[0].isdigit()]  # row 0 is the header
+    notes: dict[tuple[str, str], str] = {}
+    for stamp in stamps:
+        # The 'id_' suffix asks for the original bytes, without the archive's
+        # own HTML wrapper injected into the response.
+        snap = http_request(f"http://web.archive.org/web/{stamp}id_/{UPSTREAM}", timeout=30)
+        if snap.status != 200 or not snap.body:
+            continue
+        try:
+            data = json.loads(snap.body.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            continue
+        found = _notes_from_source(data)
+        # Later captures win: same release, more recent wording.
+        notes.update(found)
+        print(f"  [archive {stamp}] {len(found)} build(s) with notes")
+    return notes
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--dry-run", action="store_true", help="Show changes without writing")
     ap.add_argument("--check", action="store_true",
                     help="Report coverage only; exit 1 if any version lacks real notes")
+    ap.add_argument("--include-archive", action="store_true",
+                    help="Also recover notes from Wayback Machine captures of the "
+                         "upstream source (only used to fill gaps)")
     args = ap.parse_args()
 
     sources = {f: json.loads((REPO / f).read_text(encoding="utf-8")) for f in SOURCES}
@@ -125,23 +191,36 @@ def main() -> int:
     print(f"[INFO] Upstream currently publishes notes for {len(notes)} build(s): "
           f"{', '.join(f'{v}b{b}' for v, b in sorted(notes))}")
 
+    archived: dict[tuple[str, str], str] = {}
+    if args.include_archive:
+        archived = fetch_archived_notes()
+        recoverable = {k: t for k, t in archived.items() if k not in notes}
+        print(f"[INFO] Archive holds notes for {len(archived)} build(s), "
+              f"{len(recoverable)} of them no longer published upstream.")
+
     changed_files: set[str] = set()
     updated = 0
     for fname, data in sources.items():
         for app in data.get("apps", []):
             for v in app.get("versions", []):
                 key = (str(v.get("version", "")), str(v.get("buildVersion", "")))
-                upstream = notes.get(key)
-                if not upstream:
-                    # Not in the rolling window any more — keep whatever we captured.
+                current = v.get("localizedDescription")
+
+                # Live upstream is the current truth and may refresh wording.
+                # The archive is only ever used to fill a gap: a stale capture
+                # must never overwrite a note we already have.
+                text, origin = notes.get(key), "upstream"
+                if not text and is_placeholder(current):
+                    text, origin = archived.get(key), "archive"
+                if not text or current == text:
                     continue
-                if v.get("localizedDescription") == upstream:
-                    continue
+
                 label = f"{fname}: {app.get('name')} {key[0]} build {key[1]}"
-                first = "captured" if is_placeholder(v.get("localizedDescription")) else "refreshed"
-                print(f"  [{first.upper():9}] {label} ({len(upstream)} chars)")
+                action = "recovered" if origin == "archive" else (
+                    "captured" if is_placeholder(current) else "refreshed")
+                print(f"  [{action.upper():9}] {label} ({len(text)} chars, from {origin})")
                 if not args.dry_run:
-                    v["localizedDescription"] = upstream
+                    v["localizedDescription"] = text
                 changed_files.add(fname)
                 updated += 1
 

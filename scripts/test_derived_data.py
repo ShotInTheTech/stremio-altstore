@@ -300,6 +300,79 @@ class Sanitising(unittest.TestCase):
         self.assertFalse(notes.is_placeholder("fix: crash on launch\nfix: seek bar"))
 
 
+class ArchiveRecovery(unittest.TestCase):
+    """Precedence between the live source and Internet Archive captures."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self._tmp.name)
+        self._orig = (notes.REPO, notes.SOURCES,
+                      notes.fetch_upstream_notes, notes.fetch_archived_notes)
+        notes.REPO = self.dir
+        notes.SOURCES = ["stremio-ios.json"]
+
+    def tearDown(self):
+        (notes.REPO, notes.SOURCES,
+         notes.fetch_upstream_notes, notes.fetch_archived_notes) = self._orig
+        self._tmp.cleanup()
+
+    def write(self, description):
+        d = doc([version("2.0.2", "17", localizedDescription=description)])
+        (self.dir / "stremio-ios.json").write_text(json.dumps(d), encoding="utf-8")
+
+    def read_desc(self):
+        d = json.loads((self.dir / "stremio-ios.json").read_text(encoding="utf-8"))
+        return d["apps"][0]["versions"][0]["localizedDescription"]
+
+    def run_main(self, *argv, live=None, archived=None):
+        notes.fetch_upstream_notes = lambda: live or {}
+        notes.fetch_archived_notes = lambda: archived or {}
+        old = sys.argv
+        sys.argv = ["fetch_release_notes.py", *argv]
+        try:
+            with contextlib.redirect_stdout(io.StringIO()), \
+                 contextlib.redirect_stderr(io.StringIO()):
+                return notes.main()
+        finally:
+            sys.argv = old
+
+    def test_archive_fills_a_placeholder(self):
+        self.write("Stremio 2.0.2 (build 17).")
+        self.run_main("--include-archive", archived={("2.0.2", "17"): "fix: a real thing"})
+        self.assertEqual(self.read_desc(), "fix: a real thing")
+
+    def test_archive_never_overwrites_a_note_we_already_have(self):
+        # A stale capture must not clobber a better note.
+        self.write("fix: the note we already captured")
+        self.run_main("--include-archive", archived={("2.0.2", "17"): "fix: older wording"})
+        self.assertEqual(self.read_desc(), "fix: the note we already captured")
+
+    def test_live_upstream_still_refreshes_wording(self):
+        self.write("fix: old wording")
+        self.run_main(live={("2.0.2", "17"): "fix: corrected wording"})
+        self.assertEqual(self.read_desc(), "fix: corrected wording")
+
+    def test_live_wins_over_the_archive(self):
+        self.write("Stremio 2.0.2 (build 17).")
+        self.run_main("--include-archive",
+                      live={("2.0.2", "17"): "from upstream"},
+                      archived={("2.0.2", "17"): "from archive"})
+        self.assertEqual(self.read_desc(), "from upstream")
+
+    def test_archive_is_not_consulted_without_the_flag(self):
+        self.write("Stremio 2.0.2 (build 17).")
+        self.run_main(archived={("2.0.2", "17"): "fix: a real thing"})
+        self.assertEqual(self.read_desc(), "Stremio 2.0.2 (build 17).")
+
+    def test_placeholders_are_not_harvested_as_notes(self):
+        src = doc([version("2.0.2", "17", localizedDescription="Stremio 2.0.2 (build 17).")])
+        self.assertEqual(notes._notes_from_source(src), {})
+
+    def test_junk_document_yields_nothing(self):
+        for junk in (None, [], "nope", {"apps": "no"}):
+            self.assertEqual(notes._notes_from_source(junk), {})
+
+
 # --------------------------------------------------------------------------
 # add_hashes
 # --------------------------------------------------------------------------

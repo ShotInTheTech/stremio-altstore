@@ -11,6 +11,7 @@
 #   make prune       — report versions whose IPA is gone (add APPLY=1 to remove)
 #   make audit       — full weekly audit: prune report + metadata verification
 #   make notes       — capture real release notes from Stremio's own source
+#                      (ARCHIVE=1 also mines Internet Archive captures)
 #   make shots       — capture App Store screenshots from Stremio's source
 #   make news        — rebuild the in-app news feed from captured changelogs
 #   make legacy      — mirror newest build into legacy app-level fields
@@ -81,7 +82,7 @@ prune:  ## Report versions whose IPA is gone (APPLY=1 removes the safe ones)
 
 notes:  ## Capture real release notes from Stremio's source (DRY=1 to preview)
 	@echo "$(YELLOW)→ Capture release notes$(RESET)"
-	$(PYTHON) scripts/fetch_release_notes.py $(if $(DRY),--dry-run,)
+	$(PYTHON) scripts/fetch_release_notes.py $(if $(DRY),--dry-run,) $(if $(ARCHIVE),--include-archive,)
 
 shots:  ## Capture App Store screenshots from Stremio's source (DRY=1 to preview)
 	@echo "$(YELLOW)→ Capture screenshots$(RESET)"

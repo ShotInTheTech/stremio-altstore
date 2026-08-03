@@ -58,6 +58,15 @@ jobs:
           python3 scripts/verify_bundle_ids.py --verbose --fix 2>&1 | tee verify.txt
           echo "rc=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
 
+      - name: Recover missing changelogs from the archive
+        # The 6-hourly job captures notes from the live source, which only
+        # shows the newest builds. Internet Archive captures of that same URL
+        # are the only way back to anything that rolled out of the window
+        # before this repo started capturing. Weekly is plenty, and it never
+        # overwrites a note we already hold.
+        continue-on-error: true
+        run: python3 scripts/fetch_release_notes.py --include-archive
+
       - name: Refresh screenshots
         # Screenshots are stable, unlike release notes, so weekly is enough.
         # Never fails the run: a gallery is a nicety, the source is the product.

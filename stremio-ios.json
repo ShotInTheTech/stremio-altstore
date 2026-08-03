@@ -101,7 +101,7 @@
           "version": "2.0.2",
           "buildVersion": "17",
           "date": "2026-06-19",
-          "localizedDescription": "Stremio 2.0.2 (build 17).",
+          "localizedDescription": "fix: titles not showing on board and search",
           "downloadURL": "https://dl.strem.io/apple/2.0.2b17/ios/stremio_iOS.ipa",
           "size": 78053554,
           "sha256": "1194ab49a3b0b502d7c7395630c10c4b7c66cbac5ee73abce0a509bccb65f64f",
@@ -193,6 +193,16 @@
       "caption": "feat: native Stremio app for macOS",
       "tintColor": "7055D9",
       "date": "2026-07-09",
+      "notify": false,
+      "appID": "com.stremio.pal",
+      "imageURL": "https://www.stremio.com/website/stremio-logo-small.png"
+    },
+    {
+      "title": "Stremio 2.0.2",
+      "identifier": "com-stremio-pal-2-0-2-b17-iphone-ipad",
+      "caption": "fix: titles not showing on board and search",
+      "tintColor": "7055D9",
+      "date": "2026-06-19",
       "notify": false,
       "appID": "com.stremio.pal",
       "imageURL": "https://www.stremio.com/website/stremio-logo-small.png"
