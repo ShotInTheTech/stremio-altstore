@@ -58,6 +58,12 @@ jobs:
           python3 scripts/verify_bundle_ids.py --verbose --fix 2>&1 | tee verify.txt
           echo "rc=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
 
+      - name: Trim the version list
+        # The list only ever grew. Keeps the newest dozen plus anything that
+        # is the last option for an OS floor or a release line, so trimming
+        # can never strand a device. Weekly is plenty for ~one build a week.
+        run: python3 scripts/trim_versions.py --apply
+
       - name: Recover missing changelogs from the archive
         # The 6-hourly job captures notes from the live source, which only
         # shows the newest builds. Internet Archive captures of that same URL

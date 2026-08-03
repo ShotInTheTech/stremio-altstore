@@ -15,6 +15,7 @@
 #   make shots       — capture App Store screenshots from Stremio's source
 #   make news        — rebuild the in-app news feed from captured changelogs
 #   make legacy      — mirror newest build into legacy app-level fields
+#   make trim        — report versions the retention policy would drop
 #   make validate    — check the JSON sources are valid and safe to publish
 #   make test        — run the test suite
 #   make lint        — Python code quality checks
@@ -32,7 +33,7 @@ GREEN := \033[32m
 YELLOW := \033[33m
 RESET := \033[0m
 
-.PHONY: help dry-run update verify readme hashes canary prune audit notes shots news legacy validate test lint format clean set-urls ios tvos stats
+.PHONY: help dry-run update verify readme hashes canary prune audit notes shots news legacy trim validate test lint format clean set-urls ios tvos stats
 
 help:  ## Show this help message
 	@echo ""
@@ -95,6 +96,10 @@ news:  ## Rebuild the in-app news feed from captured changelogs (DRY=1 to previe
 legacy:  ## Mirror the newest build into legacy app-level fields (DRY=1 to preview)
 	@echo "$(YELLOW)→ Sync legacy fields$(RESET)"
 	$(PYTHON) scripts/sync_legacy_fields.py $(if $(DRY),--dry-run,)
+
+trim:  ## Report versions the retention policy would drop (APPLY=1 removes them)
+	@echo "$(YELLOW)→ Retention policy$(RESET)"
+	-@$(PYTHON) scripts/trim_versions.py $(if $(APPLY),--apply,) $(if $(KEEP),--keep $(KEEP),)
 
 validate:  ## Check the JSON sources are valid and safe to publish (STRICT=1 fails on warnings)
 	@echo "$(YELLOW)→ Validate sources$(RESET)"
