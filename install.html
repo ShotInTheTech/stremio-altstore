@@ -78,6 +78,15 @@
       70% { box-shadow: 0 0 0 8px rgba(62, 207, 142, 0); }
       100% { box-shadow: 0 0 0 0 rgba(62, 207, 142, 0); }
     }
+    /* The dot only claims the source is alive once we have checked. If the
+       automation has stopped, it stops pulsing and changes colour rather than
+       reassuring people about something that is no longer true. */
+    .badge .pulse.warn { background: #e8a33d; box-shadow: none; animation: none; }
+    .badge .pulse.stale { background: #e5484d; box-shadow: none; animation: none; }
+    .badge.warn { color: #f0b860; border-color: rgba(232, 163, 61, .45);
+                  background: rgba(232, 163, 61, .09); }
+    .badge.stale { color: #ff8b8f; border-color: rgba(229, 72, 77, .45);
+                   background: rgba(229, 72, 77, .09); }
     h1 {
       font-size: clamp(34px, 6vw, 52px); line-height: 1.08;
       letter-spacing: -.03em; margin: 0 0 16px; font-weight: 800;
@@ -264,7 +273,10 @@
     </header>
 
     <section class="hero">
-      <span class="badge"><span class="pulse"></span> Auto-updated every 6 hours · unofficial</span>
+      <span class="badge" id="freshness" title="Checked automatically every 6 hours">
+        <span class="pulse" id="freshness-dot"></span>
+        <span id="freshness-text">Auto-updated every 6 hours · unofficial</span>
+      </span>
       <h1>Stremio,<br /><span class="tint">sideloaded.</span></h1>
       <p>Movies and series on your iPhone, iPad and Apple TV — no App Store needed.
          Add the source below to AltStore, SideStore, Feather or any signing app,
@@ -351,6 +363,50 @@
       return typeof text === "string" && text.trim() !== "" &&
              !/^\s*.+\s+\d+(\.\d+)*\s+\(build\s+\d+\)\.\s*$/.test(text);
     }
+
+    function relativeTime(ms) {
+      var mins = Math.round(ms / 60000);
+      if (mins < 2) return "just now";
+      if (mins < 60) return mins + " minutes ago";
+      var hours = Math.round(mins / 60);
+      if (hours < 24) return hours === 1 ? "an hour ago" : hours + " hours ago";
+      var days = Math.round(hours / 24);
+      return days === 1 ? "a day ago" : days + " days ago";
+    }
+
+    // Turn the badge's "alive" dot into something earned rather than decorative:
+    // ask GitHub when the updater last completed successfully. Read-only, no
+    // token, and the page degrades to its static text if the call fails or the
+    // unauthenticated rate limit is reached.
+    (function showFreshness() {
+      var RUNS = "https://api.github.com/repos/gorlev/stremio-altstore/actions/workflows/update.yml/runs"
+               + "?status=success&per_page=1";
+      fetch(RUNS, { headers: { Accept: "application/vnd.github+json" } })
+        .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+        .then(function (d) {
+          var run = d && d.workflow_runs && d.workflow_runs[0];
+          if (!run || !run.updated_at) return;
+          var age = Date.now() - new Date(run.updated_at).getTime();
+          if (!(age >= 0)) return;
+
+          var badge = document.getElementById("freshness");
+          var dot = document.getElementById("freshness-dot");
+          var text = document.getElementById("freshness-text");
+          var hours = age / 3600000;
+          // Runs every 6 hours, so under 12 means at most one missed cycle.
+          if (hours < 12) {
+            text.textContent = "Checked " + relativeTime(age) + " · unofficial";
+          } else if (hours < 48) {
+            badge.classList.add("warn"); dot.classList.add("warn");
+            text.textContent = "Last checked " + relativeTime(age) + " · unofficial";
+          } else {
+            badge.classList.add("stale"); dot.classList.add("stale");
+            text.textContent = "Last checked " + relativeTime(age) + " — updates may have stopped";
+          }
+          badge.title = "Updater last succeeded " + new Date(run.updated_at).toLocaleString();
+        })
+        .catch(function () { /* keep the static text */ });
+    })();
 
     function fmtMB(bytes) {
       return bytes > 0 ? (bytes / 1048576).toFixed(1) + " MB" : "—";
