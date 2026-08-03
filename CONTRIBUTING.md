@@ -62,6 +62,7 @@ A good PR includes:
 - Screenshots (for UI changes)
 - Migration notes for breaking changes
 - `stremio-updater.py --dry-run` output (for JSON changes)
+- A passing `make test` and `make validate`
 
 ## Development setup
 
@@ -74,30 +75,42 @@ cd stremio-altstore
 python3 -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
-# Install dev dependencies (optional; project itself uses stdlib only)
-pip install -r requirements-dev.txt
+# Nothing to install: the project and its tests use the standard library only.
+# Linting is the one optional extra, if you want it locally.
+pip install ruff mypy   # optional
 
-# Code quality
+make test       # run the test suite
+make validate   # check the JSON sources are publishable
 make lint
 make format
 ```
 
 ## Testing
 
-There are no unit tests yet (the scripts are small and stdlib-based). PRs should include manual verification:
+There is a test suite — `make test` runs it in well under a second with no
+network access. Both workflows run it before touching the published sources,
+so a change that breaks it will not reach users.
 
 ```bash
-# Check what the updater would change
-make dry-run
-
-# Run a real update
-make update
-
-# Verify new IPAs against their Info.plists
-make verify
+make test       # the whole suite
+make validate   # would these sources be safe to publish?
 ```
 
-If you add new features, please add unit tests under a new `tests/` directory.
+It concentrates on the parts whose failure would be silent rather than loud:
+the byte-level IPA/ZIP parser, the safety rails on the scripts that delete
+versions, the version-discovery logic, and the publish gate itself.
+
+Tests live next to the code as `scripts/test_*.py` and are picked up by
+`unittest discover`. If you add a feature, add a test in the matching file.
+Anything that removes or rewrites published data needs a test for what it
+*refuses* to do, not only for the happy path.
+
+Changes to the JSON sources should also come with real-world verification:
+
+```bash
+make dry-run    # what the updater would change
+make verify     # check IPAs against their own Info.plist
+```
 
 ## Style guide
 
@@ -151,7 +164,7 @@ A: Stremio uses `com.stremio.pal` as the bundle ID on both iOS and tvOS. Most si
 A: Any app that consumes the standard AltStore source format works — Feather, AltStore Classic, AltStore PAL, ESign, Scarlet, Sideloadly, and others. See the [README's compatible signing apps section](README.md#compatible-signing-apps).
 
 **Q: A new Stremio version is out — why didn't the updater catch it?**
-A: The updater only scans the last known build + 7 build range. If Stremio jumped a major version (e.g. 2.0.2 → 3.0.0) it might miss it. Open an Issue.
+A: Candidate versions are derived from the ones already listed (next patches, next minor, next major), combined with builds up to `BUILD_LOOKAHEAD` ahead of the highest known one, plus whatever Stremio's own source is currently advertising — that last part is what catches a build that jumps far ahead. A release should normally be picked up within six hours. If one is genuinely missed, please open an Issue: that has happened before and the fix was to widen discovery.
 
 **Q: The updater makes parallel HEAD requests — does Stremio rate-limit?**
 A: 16 workers. No rate-limit observed so far, but you can lower `max_workers` inside `stremio-updater.py` if needed.
