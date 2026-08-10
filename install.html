@@ -269,7 +269,7 @@
   <div class="wrap">
     <header class="top">
       <div class="brand"><span class="dot">🍿</span> stremio‑altstore</div>
-      <a class="gh" href="https://github.com/gorlev/stremio-altstore">GitHub ↗</a>
+      <a class="gh" href="https://github.com/shotinthetech/stremio-altstore">GitHub ↗</a>
     </header>
 
     <section class="hero">
@@ -346,12 +346,12 @@
       <p>Unofficial community project — not affiliated with Stremio or SmartCode OOD.
          IPAs are served by Stremio's public CDN (<code>dl.strem.io</code>); this repo only publishes metadata.<br />
          Apps signed with a free Apple ID expire after 7 days.
-         <a href="https://github.com/gorlev/stremio-altstore">Source &amp; issues on GitHub</a>.</p>
+         <a href="https://github.com/shotinthetech/stremio-altstore">Source &amp; issues on GitHub</a>.</p>
     </footer>
   </div>
 
   <script>
-    var BASE = "https://gorlev.github.io/stremio-altstore/";
+    var BASE = "https://shotinthetech.github.io/stremio-altstore/";
     var PLATFORMS = [
       { key: "ios",  json: "stremio-ios.json",  label: "iOS / iPadOS" },
       { key: "tvos", json: "stremio-tvos.json", label: "Apple TV" }
@@ -379,7 +379,7 @@
     // token, and the page degrades to its static text if the call fails or the
     // unauthenticated rate limit is reached.
     (function showFreshness() {
-      var RUNS = "https://api.github.com/repos/gorlev/stremio-altstore/actions/workflows/update.yml/runs"
+      var RUNS = "https://api.github.com/repos/shotinthetech/stremio-altstore/actions/workflows/update.yml/runs"
                + "?status=success&per_page=1";
       fetch(RUNS, { headers: { Accept: "application/vnd.github+json" } })
         .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
