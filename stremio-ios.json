@@ -58,6 +58,16 @@
       },
       "versions": [
         {
+          "version": "2.0.7",
+          "buildVersion": "22",
+          "date": "2026-08-24",
+          "localizedDescription": "Stremio 2.0.7 (build 22).",
+          "downloadURL": "https://dl.strem.io/apple/2.0.7b22/ios/stremio_iOS.ipa",
+          "size": 78704513,
+          "sha256": "cddfe220ce1f0c3befaf29eff9d7c3fe9cdb737bbac4353468169ba0d28b2c0f",
+          "minOSVersion": "13.0"
+        },
+        {
           "version": "2.0.6",
           "buildVersion": "21",
           "date": "2026-07-22",
@@ -158,11 +168,11 @@
           "minOSVersion": "13.0"
         }
       ],
-      "version": "2.0.6",
-      "versionDate": "2026-07-22",
-      "versionDescription": "feat: new desktop like UI for player and navigation on iPadOS",
-      "downloadURL": "https://dl.strem.io/apple/2.0.6b21/ios/stremio_iOS.ipa",
-      "size": 75942223,
+      "version": "2.0.7",
+      "versionDate": "2026-08-24",
+      "versionDescription": "Stremio 2.0.7 (build 22).",
+      "downloadURL": "https://dl.strem.io/apple/2.0.7b22/ios/stremio_iOS.ipa",
+      "size": 78704513,
       "minOSVersion": "13.0",
       "screenshotURLs": [
         "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource221/v4/6a/ee/19/6aee194d-7b33-aaab-b3bf-64b9773e6120/login.png/1242x2688ss.jpg",
